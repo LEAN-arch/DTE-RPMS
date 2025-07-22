@@ -42,7 +42,7 @@ from scipy.stats import f_oneway
 # =================================================================================================
 st.set_page_config(
     page_title="Phoenix Engine 2.0 | VTX DTE-RPMS",
-    page_icon="https://www.vrtx.com/sites/default/files/favicons/favicon-32x32.png",
+    page_icon="🔥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
