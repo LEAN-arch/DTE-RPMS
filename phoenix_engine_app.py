@@ -748,6 +748,8 @@ elif page == "📈 **System Health & Metrics**":
             fig_pie = px.pie(action_counts, values=action_counts.values, names=action_counts.index, title="Top 5 User Actions", hole=0.4)
             st.plotly_chart(fig_pie, use_container_width=True)
 
+# ... (All previous page implementations are correct) ...
+
 elif page == "📚 **SME Knowledge Base & Help**":
     st.header("📚 SME Knowledge Base & Help Center")
     st.markdown("Centralized documentation, tutorials, and feedback mechanisms for training and business continuity.")
@@ -758,53 +760,112 @@ elif page == "📚 **SME Knowledge Base & Help**":
             st.markdown("""
             - **Purpose:** To visualize the probability density of a continuous variable. It provides a much smoother and more interpretable alternative to a histogram for understanding the shape of a distribution.
             - **Aim:** Used in the `Cross-Study Analysis` page to compare the shape, modality (number of peaks), and skewness of assay responses between different studies, which simple box plots might hide.
-            - **Mathematical Basis:** A non-parametric method that creates a smooth curve by placing a kernel (typically a Gaussian function) on each data point and then summing them.
+            - **Mathematical Basis:** A non-parametric method that creates a smooth curve by placing a kernel (typically a Gaussian function) on each data point and then summing them. The formula for the KDE at a point *x* is:
+            """)
+            st.latex(r''' \hat{f}_h(x) = \frac{1}{nh} \sum_{i=1}^{n} K\left(\frac{x - x_i}{h}\right) ''')
+            st.markdown("""
+            Where *n* is the number of samples, *h* is the bandwidth (controls smoothness), and *K* is the kernel function.
             - **Result Interpretation:** A tall, narrow peak indicates high concentration of data, while a wide, flat curve indicates high variability. Multiple peaks (bi-modality) can suggest the presence of distinct sub-populations in the data.
             """)
         with st.expander("Experiment Design: Bayesian Optimization"):
             st.markdown("""
             - **Purpose:** To efficiently find the maximum or minimum of a "black box" function that is expensive to evaluate (e.g., a multi-day lab experiment).
             - **Aim:** Demonstrated in the `Technology Proving Ground` to show how we can find optimal process parameters (like temperature and pH for maximum yield) with significantly fewer experiments than traditional grid search methods.
-            - **Mathematical Basis:** It uses a probabilistic surrogate model (typically a Gaussian Process) to approximate the objective function. It then uses an acquisition function (e.g., Expected Improvement) to decide the next most promising point to sample, balancing exploration and exploitation.
-            - **Result Interpretation:** The result is a set of parameters that are predicted to give the optimal outcome.
+            - **Mathematical Basis:** It uses a probabilistic surrogate model (typically a Gaussian Process) to approximate the objective function. It then uses an acquisition function (e.g., Expected Improvement) to decide the next most promising point to sample, balancing exploration (sampling in uncertain areas) and exploitation (sampling near the current best known point).
+            - **Result Interpretation:** The result is a set of parameters that are predicted to give the optimal outcome. The process provides a history of sampled points, showing how it intelligently navigated the parameter space.
             """)
         with st.expander("Unsupervised Learning: Clustering (K-Means)"):
             st.markdown("""
-            - **Purpose:** To partition a dataset into a pre-determined number (K) of distinct, non-overlapping subgroups (clusters).
-            - **Aim:** Used in the `Multivariate Analysis` module to discover natural groupings in process data, such as distinct 'regimes' of operation ('normal', 'startup', 'upset').
-            - **Result Interpretation:** The output is a set of cluster labels for each data point. Visualizing these clusters can reveal hidden structures in the data.
+            - **Purpose:** To partition a dataset into a pre-determined number (K) of distinct, non-overlapping subgroups (clusters) where data points in the same cluster are as similar as possible.
+            - **Aim:** Used in the `Multivariate Analysis` module to discover natural groupings in process data. For example, it can identify distinct 'regimes' of operation (e.g., 'normal', 'startup', 'upset') based on multiple sensor readings.
+            - **Mathematical Basis:** An iterative algorithm that aims to minimize the within-cluster sum of squares (inertia). The objective function is:
             """)
-        with st.expander("Process & Method Validation"):
+            st.latex(r''' \sum_{i=1}^{K} \sum_{x \in S_i} ||x - \mu_i||^2 ''')
             st.markdown("""
-            A suite of statistical tools used to ensure that an analytical method or a manufacturing process is stable, reliable, and fit for its intended purpose.
+            Where *μᵢ* is the mean of points in cluster *Sᵢ*.
+            - **Result Interpretation:** The output is a set of cluster labels for each data point. Visualizing these clusters (e.g., on a scatter plot) can reveal hidden structures and relationships in the data.
             """)
-        st.subheader("Regulatory & GxP Governance")
-        st.markdown("""
-        - **GAMP 5 (Good Automated Manufacturing Practice):** A risk-based approach to compliant GxP computerized systems, focusing on patient safety, product quality, and data integrity. The `System Validation` page workflow (URS, FS, IQ, OQ, PQ) is based on this globally recognized framework.
-        - **21 CFR Part 11:** The FDA's regulation defining the criteria under which electronic records and electronic signatures are considered trustworthy, reliable, and equivalent to paper records. This platform addresses its key tenets via:
-            - **Audit Trails:** The persistent SQLite backend logs all GxP-relevant actions.
-            - **Electronic Signatures:** Actions in the `Regulatory Hub` are tied to a unique user.
-            - **Security & Access Control:** Architecture is designed for role-based access.
-            - **Validation:** The entire system is subject to the GAMP 5 validation lifecycle.
-        """)
+        with st.expander("Unsupervised Learning: Anomaly Detection (Isolation Forest)"):
+            st.markdown("""
+            - **Purpose:** To identify rare and unusual data points (anomalies or outliers) in a dataset without requiring prior labels.
+            - **Aim:** Used in the `Multivariate Analysis` module to detect anomalous operating conditions based on multiple parameters simultaneously, which might not be out-of-spec on any single parameter.
+            - **Mathematical Basis:** It builds an ensemble of "isolation trees." The core idea is that anomalies are "few and different" and will therefore require fewer partitions to be isolated from the other data points. The anomaly score is based on the average path length to isolate a point across all trees.
+            - **Result Interpretation:** Points with a short average path length are flagged as anomalies. This is highly effective for finding outliers in high-dimensional datasets.
+            """)
+        
+        st.subheader("Process & Method Validation")
+        with st.expander("Process Control: Levey-Jennings, EWMA & CUSUM Charts"):
+            st.markdown("""
+            - **Purpose:** To monitor a process over time and distinguish between common cause variation (inherent noise) and special cause variation (an assignable event that needs investigation).
+            - **Aim:** Used in the `Process Control` module to ensure manufacturing processes like API purity for TRIKAFTA remain in a state of statistical control.
+            - **Mathematical Basis:**
+                - **Levey-Jennings (Shewhart):** Plots individual data points against control limits, typically set at ±2σ (warning) and ±3σ (action) from the mean. It is excellent at detecting large shifts.
+                - **EWMA (Exponentially Weighted Moving Average):** Gives more weight to recent data points, making it more sensitive to small, sustained shifts. The value at time *t* is:
+            """)
+            st.latex(r''' Z_t = \lambda X_t + (1-\lambda)Z_{t-1} ''')
+            st.markdown("""
+                - **CUSUM (Cumulative Sum):** Plots the cumulative sum of deviations from a target. It is extremely effective at detecting small, persistent drifts in the process mean.
+            - **Result Interpretation:** Points outside the control limits on any chart, or non-random patterns (e.g., 8 points in a row above the mean), signal that the process is out of control and requires investigation.
+            """)
+        with st.expander("Process Control: Multivariate QC (Hotelling's T²)"):
+            st.markdown("""
+            - **Purpose:** To monitor multiple correlated process variables simultaneously in a single chart.
+            - **Aim:** To detect out-of-control conditions that might not be apparent when monitoring each variable individually.
+            - **Mathematical Basis:** It calculates a single statistic (T²) that represents the multivariate distance of a data point from the center of the data, accounting for the correlation between variables. The formula for a point *x* is:
+            """)
+            st.latex(r''' T^2 = (x - \bar{x})' S^{-1} (x - \bar{x}) ''')
+            st.markdown("""
+            Where *x̄* is the vector of means and *S⁻¹* is the inverse of the covariance matrix.
+            - **Result Interpretation:** A point exceeding the T² Upper Control Limit (UCL) indicates a statistically significant deviation from normal operating conditions across the combined variables.
+            """)
+        with st.expander("Method Validation: Bland-Altman & Equivalence Testing (TOST)"):
+            st.markdown("""
+            - **Purpose:**
+                - **Bland-Altman:** To assess the agreement between two quantitative measurement methods.
+                - **TOST (Two One-Sided Tests):** To statistically test if the difference between two methods is small enough to be considered practically equivalent.
+            - **Aim:** Used in the `Assay Validation` suite to validate that a new, faster analytical method produces results that are interchangeable with an existing, validated method.
+            - **Mathematical Basis:**
+                - **Bland-Altman:** Plots the difference between paired measurements against their average. It calculates the mean difference (bias) and the 95% limits of agreement (mean ± 1.96 * stdev).
+                - **TOST:** It reverses the null hypothesis. It performs two one-sided t-tests against user-defined equivalence bounds (-Δ, +Δ). If both null hypotheses (that the difference is ≤ -Δ or ≥ +Δ) are rejected, equivalence is claimed.
+            - **Result Interpretation:** A Bland-Altman plot with a small bias and tight limits of agreement indicates good agreement. A significant TOST result (p < 0.05) provides statistical proof of equivalence for change control.
+            """)
+        with st.expander("Method Validation: Limit of Detection (LoD) by Probit Analysis"):
+            st.markdown("""
+            - **Purpose:** To estimate the lowest concentration of a substance that can be reliably detected by an analytical procedure with a stated confidence level.
+            - **Aim:** Used in the `Assay Validation` suite to characterize the performance of a new impurity assay, a critical parameter for regulatory submission.
+            - **Mathematical Basis:** A Probit regression models the relationship between the concentration of an analyte and the probability of a binary outcome (detected/not detected). It fits a cumulative normal distribution curve to this binary data. The model is:
+            """)
+            st.latex(r''' P(Y=1 | X) = \Phi(\beta_0 + \beta_1 X) ''')
+            st.markdown("""
+            Where *Φ* is the standard normal CDF. The LoD is then calculated by finding the concentration *X* that corresponds to a desired probability (e.g., 95%).
+            - **Result Interpretation:** The LoD is reported as a concentration value (e.g., 0.1 ng/mL at 95% confidence), which defines the validated lower limit of the assay's performance.
+            """)
+        with st.expander("Time Series: Forecasting with SARIMA"):
+            st.markdown("""
+            - **Purpose:** To model and forecast time series data that exhibits both non-seasonal and seasonal patterns.
+            - **Aim:** Used in the `Process Control` module to forecast future values of a Critical Quality Attribute (CQA) and predict if the process is likely to drift out of specification in the near future.
+            - **Mathematical Basis:** SARIMA stands for Seasonal AutoRegressive Integrated Moving Average. It is defined by the notation (p,d,q)(P,D,Q)m, where (p,d,q) are the non-seasonal components and (P,D,Q)m are the seasonal components.
+            - **Result Interpretation:** The model produces a forecast of future data points along with a confidence interval. If the confidence interval overlaps with specification limits, it serves as an early warning of a potential future process failure.
+            """)
+
     with tab_help:
         st.subheader("Step-by-Step Guides")
         st.markdown("""
         **How to Investigate a QC Flag:**
         1. Go to the **Automated Root Cause Analysis** page and select the relevant study.
-        2. On the first tab, 'Predicted Root Cause', review the bar chart to identify the feature with the highest importance.
-        3. Go to the 'Live SHAP Waterfall' tab and use the slider to inspect individual flagged records to see why the model flagged it.
+        2. On the first tab, 'Predicted Root Cause', review the bar chart to identify the feature with the highest importance (e.g., 'ReagentLot').
+        3. Go to the 'Live SHAP Waterfall' tab and use the slider to inspect individual flagged records. This will show you exactly *why* the model flagged it.
         4. Go to the **Cross-Study & Batch Analysis** page and select the 'Violin & Box Plots' tab to visually confirm the distribution difference.
         5. Log your findings in an external CAPA system, referencing the Phoenix Engine analysis.
 
         **Troubleshooting Python SPC:**
         - Ensure your data is a single series of numerical values.
-        - Check for NaN or non-finite values before passing to `pyspc`.
+        - Check for NaN or non-finite values before passing to `pyspc`. The library is robust but sensitive to incorrect data types.
         """)
     with tab_feedback:
         st.subheader("Provide Feedback on this Platform")
         with st.form("feedback_form"):
-            page_options = ["Global Command Center", "Assay Dev", "Strategic Roadmap", "Process Control", "Genomic QC", "Cross-Study Analysis", "RCA", "Tech Proving Ground", "Regulatory Hub", "Data Lineage", "System Validation", "Admin Panel", "System Health", "Knowledge Base"]
+            page_options = ["Global Command Center", "Assay Dev & Validation", "Process Control (TRIKAFTA)", "Genomic Data QC (CASGEVY)", "Cross-Study & Batch Analysis", "Multivariate & Cluster Analysis", "Automated Root Cause Analysis", "Technology Proving Ground", "Regulatory & Audit Hub", "Data Lineage & Versioning", "System Validation & QA", "System Admin Panel", "System Health & Metrics", "SME Knowledge Base & Help"]
             feedback_page = st.selectbox("Which page are you providing feedback for?", page_options)
             feedback_rating = st.slider("Rating (1=Poor, 5=Excellent)", 1, 5, 4)
             feedback_comment = st.text_area("Comments:")
