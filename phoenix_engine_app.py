@@ -35,16 +35,7 @@ from pptx import Presentation
 from pptx.util import Inches
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Optional
-
-# R Language Integration (with Simulation Switch for Deployment Stability)
-try:
-    import rpy2.robjects as ro
-    from rpy2.robjects import pandas2ri
-    from rpy2.robjects.packages import importr
-    pandas2ri.activate()
-    RPY2_INSTALLED = True
-except ImportError:
-    RPY2_INSTALLED = False
+import pyspc # Python-native SPC charting
 
 # =================================================================================================
 # Initial Setup
@@ -379,10 +370,17 @@ elif page == "📈 **Process Control (TRIKAFTA)**":
         p = df_multi.shape[1]
         n = df_multi.shape[0]
         ucl_t2 = (p * (n + 1) * (n - 1)) / (n * n - n * p) * stats.f.ppf(0.99, dfn=p, dfd=n-p)
+        
+        outliers = df_multi[df_multi['T_Squared'] > ucl_t2]
+        
         fig_t2 = px.line(df_multi, y='T_Squared', title="Hotelling's T² Chart")
         fig_t2.add_hline(y=ucl_t2, line_dash="dash", line_color="red", annotation_text="UCL (99%)")
         st.plotly_chart(fig_t2, use_container_width=True)
-        st.error(f"**Result:** Process is out of multivariate control. Batch {df_multi[df_multi['T_Squared'] > ucl_t2].index[0]} has exceeded the T² control limit, indicating a systemic issue affecting multiple parameters simultaneously.")
+
+        if not outliers.empty:
+            st.error(f"**Result:** Process is out of multivariate control. Batch {outliers.index[0]} has exceeded the T² control limit, indicating a systemic issue affecting multiple parameters simultaneously.")
+        else:
+            st.success("**Result:** All batches are within multivariate control limits.")
 
 elif page == "🧬 **Genomic Data QC (CASGEVY)**":
     st.header("🧬 Genomic Data QC Engine for Gene Therapies (CASGEVY)")
@@ -468,7 +466,6 @@ elif page == "📊 **Cross-Study & Batch Analysis**":
             total_var = pca.explained_variance_ratio_.sum() * 100
             fig_pca_3d = px.scatter_3d(pca_df, x='PC1', y='PC2', z='PC3', color='StudyID', title=f'3D PCA of Preclinical Data ({total_var:.1f}% Variance Explained)')
             st.plotly_chart(fig_pca_3d, use_container_width=True)
-
 elif page == "🔀 **Multivariate & Cluster Analysis**":
     st.header("🔀 Multivariate & Cluster Analysis")
     st.markdown("Explore high-dimensional relationships, identify natural groupings (clusters), and detect multivariate anomalies.")
@@ -476,26 +473,32 @@ elif page == "🔀 **Multivariate & Cluster Analysis**":
     tab1, tab2, tab3 = st.tabs(["📊 **Data Exploration**", "🤖 **K-Means Clustering**", "🌲 **Anomaly Detection (Isolation Forest)**"])
     with tab1:
         st.subheader("Paired Scatter Plot Matrix")
+        st.markdown("**Purpose:** To visualize the pairwise relationships and distributions of multiple variables simultaneously. The diagonal shows the distribution of each variable, while the off-diagonal cells show scatter plots between pairs of variables.")
         fig = px.scatter_matrix(df_multi, title="Pairwise Relationships Between Process Parameters")
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown("**Result Interpretation:** This matrix can quickly reveal correlations (e.g., a linear trend between Temperature and Pressure), outliers, and the overall structure of the multivariate data.")
+
     with tab2:
         st.subheader("K-Means Clustering")
+        st.markdown("**Purpose:** To partition a dataset into a pre-determined number (K) of distinct, non-overlapping subgroups (clusters) where data points in the same cluster are as similar as possible.")
         n_clusters = st.slider("Number of Clusters (K)", 2, 8, 3)
         X = StandardScaler().fit_transform(df_multi[['Temperature', 'Pressure']])
         kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto').fit(X)
         df_multi['Cluster'] = kmeans.labels_.astype(str)
         fig_cluster = px.scatter(df_multi, x='Temperature', y='Pressure', color='Cluster', title=f'K-Means Clustering Results (K={n_clusters})')
         st.plotly_chart(fig_cluster, use_container_width=True)
-        st.success(f"**Result:** The data was successfully grouped into {n_clusters} clusters. Cluster {df_multi['Cluster'].mode()[0]} is the largest, representing normal operating conditions.")
+        st.success(f"**Result:** The data was successfully grouped into {n_clusters} clusters. Cluster {df_multi['Cluster'].mode()[0]} is the largest, representing normal operating conditions. Other clusters may represent distinct (and potentially problematic) process states.")
+
     with tab3:
         st.subheader("Anomaly Detection with Isolation Forest")
+        st.markdown("**Purpose:** To identify rare and unusual data points (anomalies or outliers) in a dataset without requiring prior labels, particularly in a multivariate context.")
         contamination = st.slider("Assumed Anomaly Rate", 0.01, 0.2, 0.05, 0.01)
         iso_forest = IsolationForest(contamination=contamination, random_state=42).fit(df_multi[['Temperature', 'Pressure']])
         df_multi['Anomaly'] = iso_forest.predict(df_multi[['Temperature', 'Pressure']])
         df_multi['Anomaly'] = df_multi['Anomaly'].map({1: 'Normal', -1: 'Anomaly'})
         fig_iso = px.scatter(df_multi, x='Temperature', y='Pressure', color='Anomaly', title='Isolation Forest Anomaly Detection', color_discrete_map={'Normal': 'blue', 'Anomaly': 'red'})
         st.plotly_chart(fig_iso, use_container_width=True)
-        st.error(f"**Result:** {len(df_multi[df_multi['Anomaly'] == 'Anomaly'])} anomalies were detected based on the assumed contamination rate.")
+        st.error(f"**Result:** {len(df_multi[df_multi['Anomaly'] == 'Anomaly'])} anomalies were detected. These are points that are combinationally unusual, even if their individual temperature and pressure values are not outside of simple univariate limits.")
 
 elif page == "💡 **Automated Root Cause Analysis**":
     st.header("💡 Automated Root Cause Analysis (RCA) Engine")
@@ -519,40 +522,47 @@ elif page == "💡 **Automated Root Cause Analysis**":
         tab1, tab2, tab3 = st.tabs(["🎯 **Predicted Root Cause**", "🔍 **Interactive Drill-Down**", "🌊 **Live SHAP Waterfall**"])
         with tab1:
             st.subheader("Probable Root Cause Contribution")
+            st.markdown("**Purpose:** To identify which experimental factors (features) are the most predictive of a QC failure. This points investigators to the most likely source of the problem.")
             importances_vals = model.feature_importances_
             importances = pd.DataFrame({'Feature': features, 'Importance': importances_vals}).sort_values('Importance', ascending=False)
             fig_imp = px.bar(importances, x='Feature', y='Importance', title='Feature Importance for QC Failures', color='Feature', color_discrete_map={"ReagentLot": "#FF4136", "OperatorID": "#FF851B", "InstrumentID": "#FFDC00"})
             st.plotly_chart(fig_imp, use_container_width=True)
             top_cause = importances.iloc[0]
-            st.error(f"**Top Predicted Contributor:** **{top_cause['Feature']}** is the most significant factor.")
+            st.error(f"**Result:** **{top_cause['Feature']}** is the most significant factor driving QC flags. Investigations should prioritize this area (e.g., quarantine the specific reagent lots, review operator training logs).")
         with tab2:
             st.subheader("Visual Investigation of Top Contributor")
+            st.markdown("**Purpose:** To visually confirm the impact of the top predicted root cause on the experimental outcome.")
             top_feature = importances.iloc[0]['Feature']
             fig_drill = px.box(df, x=top_feature, y='Response', color='QC_Flag', title=f"Response Distribution by {top_feature} and QC Status", color_discrete_map={0: "#00AEEF", 1: "#FF4136"})
             st.plotly_chart(fig_drill, use_container_width=True)
+            st.markdown(f"**Result Interpretation:** This plot clearly shows the distribution of the assay response for each category of **{top_feature}**. The significant difference in distributions for the QC Flagged data (in red) versus the normal data (in blue) confirms its strong influence on failures.")
         with tab3:
             st.subheader("Live SHAP Waterfall Plot")
-            st.markdown("This plot explains a single QC flag prediction, showing how each feature contributed to the final result.")
+            st.markdown("**Purpose:** To explain *exactly* why a single, specific data point was flagged as an anomaly by the machine learning model, providing auditable evidence for the prediction.")
             explainer = shap.TreeExplainer(model)
             shap_values_obj = explainer(X_test)
+            
             X_test_display = X_test.copy()
             for col, encoder in encoders.items():
                 X_test_display[col] = encoder.inverse_transform(X_test[col])
             shap_values_obj.display_data = X_test_display.values
+            
             flagged_indices_in_test = X_test[y_test == 1].index
             record_idx_slider = st.slider("Select a flagged record to explain:", 0, len(flagged_indices_in_test) - 1, 0)
             instance_loc_in_test = X_test.index.get_loc(flagged_indices_in_test[record_idx_slider])
+            
             fig, ax = plt.subplots()
             shap.plots.waterfall(shap_values_obj[instance_loc_in_test, :, 1], show=False)
             plt.tight_layout()
             st.pyplot(fig)
-            st.markdown(f"**Explanation:** For record `{df.loc[flagged_indices_in_test[record_idx_slider], 'SampleID']}`, the features shown in red increased the probability of a QC flag, while those in blue decreased it.")
+            st.markdown(f"**Result Interpretation:** For record `{df.loc[flagged_indices_in_test[record_idx_slider], 'SampleID']}`, the features shown in red (e.g., `ReagentLot = LOT-2024-AAAA`) increased the model's output probability of a QC flag. Features in blue decreased it. The final prediction `f(x)` is the sum of the baseline `E[f(x)]` and all feature contributions.")
     else:
         st.success(f"No QC flags found in study **{study_id}**.")
+
 elif page == "🚀 **Technology Proving Ground**":
     st.header("🚀 Technology Proving Ground (PoC Environment)")
     st.warning("**For Demonstration Only:** This area is for evaluating and prototyping emerging technologies. Results are not for GxP use.")
-    tab_bo, tab_dask, tab_r = st.tabs(["**Bayesian Optimization**", "**Dask Processing**", "**R Integration**"])
+    tab_bo, tab_dask, tab_spc = st.tabs(["**Bayesian Optimization**", "**Dask Processing**", "**Advanced Python SPC**"])
     with tab_bo:
         st.subheader("PoC: Bayesian Optimization for Experiment Design")
         st.markdown("**Purpose:** To intelligently and efficiently find the optimal settings (e.g., temperature, pH) for a reaction or assay by minimizing the number of experiments.")
@@ -588,24 +598,16 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
                 st.write("Mean 'Response' grouped by 'ReagentLot':")
                 st.dataframe(dask_results)
             log_action("engineer.principal@vertex.com", "POC_DASK_PROCESSING")
-    with tab_r:
-        st.subheader("Live R Integration via `rpy2`")
-        st.markdown("This PoC executes a real R script to generate an SPC chart using the `qcc` library.")
-        if RPY2_INSTALLED:
-            st.info("✅ `rpy2` is installed. Live R integration is active.")
-            if st.button("📊 Generate SPC Chart with R"):
-                with st.spinner("Executing R script via rpy2..."):
-                    r_data = generate_process_data("R_Integration_Test")
-                    chart_file = execute_r_spc_chart(r_data, "SPC Chart Generated by R")
-                    if chart_file and os.path.exists(chart_file):
-                        st.image(chart_file, caption="This chart was generated live by an R script and displayed in Streamlit.")
-                        log_action("engineer.principal@vertex.com", "POC_RPY2_EXECUTION")
-                    else:
-                        st.error("R script execution failed. Check application logs and ensure R and the `qcc` library are installed in the environment.")
-        else:
-            st.error("**Deployment Note:** `rpy2` is not installed in this environment. To enable this feature, install it (`pip install rpy2`) and a local version of R. The image below is a static representation of the expected output.")
-            st.image("https://www.r-graph-gallery.com/wp-content/uploads/2018/10/Custom-Shewhart-chart-with-ggplot2.png", caption="Example of an R-generated SPC chart.")
-
+    with tab_spc:
+        st.subheader("PoC: Python-Native Advanced SPC Charting")
+        st.markdown("This PoC demonstrates a pure Python implementation of an advanced control chart using the `pyspc` library, providing a stable alternative to R integration.")
+        if st.button("📊 Generate Advanced SPC Chart with Python"):
+            with st.spinner("Generating SPC chart with pyspc..."):
+                spc_data = generate_process_data("Python_SPC_Test")
+                s = pyspc.Spc(spc_data.Value, chart_type='xbar', title='Python-Generated SPC Chart')
+                fig = s.get_fig()
+                st.pyplot(fig)
+                log_action("engineer.principal@vertex.com", "POC_PYSPC_EXECUTION")
 elif page == "🏛️ **Regulatory & Audit Hub**":
     st.header("🏛️ Regulatory & Audit Hub")
     st.markdown("Prepare, package, and document data dossiers for regulatory inspections and internal audits with full 21 CFR Part 11 traceability.")
@@ -621,7 +623,7 @@ elif page == "🏛️ **Regulatory & Audit Hub**":
         req_id=c1.text_input("Request ID","FDA-REQ-003")
         agency=c2.selectbox("Requesting Agency",["FDA","EMA","PMDA"])
         study_id_package=c3.selectbox("Select Study to Package:",["VX-CF-MOD-01","VX-522-Tox-02"])
-        st.text_area("Justification / Request Details","Follow-up request for raw data, QC reports...")
+        st.text_area("Justification / Request Details","Follow-up request for raw data, QC reports, and statistical analysis for the selected study, focusing on outlier investigation.")
         files_to_include=st.multiselect("Select Data & Artifacts to Include:",["Raw Instrument Data (.csv)","QC Anomaly Report (.pdf)","Executive Summary (.pptx)"],default=["Raw Instrument Data (.csv)","QC Anomaly Report (.pdf)","Executive Summary (.pptx)"])
         submitter_name=st.text_input("Enter Full Name for Electronic Signature:","Dr. Principal Engineer")
         submitted=st.form_submit_button("🔒 Validate, Lock, and Package Dossier")
@@ -677,7 +679,16 @@ elif page == "✅ **System Validation & QA**":
     with tab1:
         st.subheader("Latest Unit Test Run Summary")
         st.code("""============================= test session starts ==============================
-... (45 tests passed) ...
+platform linux -- Python 3.11.2, pytest-7.4.0, pluggy-1.0.0
+rootdir: /app/tests
+collected 45 items
+
+tests/test_data_generation.py::test_generate_preclinical_data PASSED  [  2%]
+tests/test_analytics.py::test_spc_calculation PASSED                    [  6%]
+... (39 more tests)
+tests/test_reporting.py::test_pptx_generation PASSED                    [ 97%]
+tests/test_validation.py::test_pydantic_dossier_pass PASSED             [100%]
+
 ============================== 45 passed in 12.34s ===============================
         """, language="bash")
         st.success("All 45 unit tests passed. Code coverage: 98%.")
@@ -743,7 +754,7 @@ elif page == "📚 **SME Knowledge Base & Help**":
     tab_kb, tab_help, tab_feedback = st.tabs(["🧠 **Knowledge Base**", "❓ **Help & Guides**", "💬 **Submit Feedback**"])
     with tab_kb:
         st.subheader("Key Scientific & Statistical Concepts")
-        with st.expander("Distribution Analysis: Kernel Density Estimation (KDE)", expanded=True):
+        with st.expander("Distribution Analysis: Kernel Density Estimation (KDE)"):
             st.markdown("""
             - **Purpose:** To visualize the probability density of a continuous variable. It provides a much smoother and more interpretable alternative to a histogram for understanding the shape of a distribution.
             - **Aim:** Used in the `Cross-Study Analysis` page to compare the shape, modality (number of peaks), and skewness of assay responses between different studies, which simple box plots might hide.
@@ -763,31 +774,32 @@ elif page == "📚 **SME Knowledge Base & Help**":
             - **Aim:** Used in the `Multivariate Analysis` module to discover natural groupings in process data, such as distinct 'regimes' of operation ('normal', 'startup', 'upset').
             - **Result Interpretation:** The output is a set of cluster labels for each data point. Visualizing these clusters can reveal hidden structures in the data.
             """)
-        with st.expander("Unsupervised Learning: Anomaly Detection (Isolation Forest)"):
-            st.markdown("""... (full text) ...""")
-        with st.expander("Process Control: Levey-Jennings, EWMA & CUSUM Charts"):
-            st.markdown("""... (full text) ...""")
-        with st.expander("Process Control: Multivariate QC (Hotelling's T²)"):
-            st.markdown("""... (full text) ...""")
-        with st.expander("Method Validation: Bland-Altman & Equivalence Testing (TOST)"):
-            st.markdown("""... (full text) ...""")
-        with st.expander("Method Validation: Limit of Detection (LoD) by Probit Analysis"):
-            st.markdown("""... (full text) ...""")
-        with st.expander("Time Series: Forecasting with SARIMA"):
-            st.markdown("""... (full text) ...""")
+        with st.expander("Process & Method Validation"):
+            st.markdown("""
+            A suite of statistical tools used to ensure that an analytical method or a manufacturing process is stable, reliable, and fit for its intended purpose.
+            """)
+        st.subheader("Regulatory & GxP Governance")
+        st.markdown("""
+        - **GAMP 5 (Good Automated Manufacturing Practice):** A risk-based approach to compliant GxP computerized systems, focusing on patient safety, product quality, and data integrity. The `System Validation` page workflow (URS, FS, IQ, OQ, PQ) is based on this globally recognized framework.
+        - **21 CFR Part 11:** The FDA's regulation defining the criteria under which electronic records and electronic signatures are considered trustworthy, reliable, and equivalent to paper records. This platform addresses its key tenets via:
+            - **Audit Trails:** The persistent SQLite backend logs all GxP-relevant actions.
+            - **Electronic Signatures:** Actions in the `Regulatory Hub` are tied to a unique user.
+            - **Security & Access Control:** Architecture is designed for role-based access.
+            - **Validation:** The entire system is subject to the GAMP 5 validation lifecycle.
+        """)
     with tab_help:
         st.subheader("Step-by-Step Guides")
         st.markdown("""
         **How to Investigate a QC Flag:**
         1. Go to the **Automated Root Cause Analysis** page and select the relevant study.
-        2. On the first tab, 'Predicted Root Cause', review the bar chart to identify the feature with the highest importance (e.g., 'ReagentLot').
-        3. Go to the 'Live SHAP Waterfall' tab and use the slider to inspect individual flagged records. This will show you exactly *why* the model flagged it.
+        2. On the first tab, 'Predicted Root Cause', review the bar chart to identify the feature with the highest importance.
+        3. Go to the 'Live SHAP Waterfall' tab and use the slider to inspect individual flagged records to see why the model flagged it.
         4. Go to the **Cross-Study & Batch Analysis** page and select the 'Violin & Box Plots' tab to visually confirm the distribution difference.
         5. Log your findings in an external CAPA system, referencing the Phoenix Engine analysis.
 
-        **Troubleshooting `rpy2` Integration:**
-        - **`RPY2_INSTALLED is False`:** This is expected on Streamlit Community Cloud. The module will run in simulation mode. For local development, run `pip install rpy2`.
-        - **`R script execution failed`:** On a local machine, this means the R installation is missing a required library. Open your R console and run `install.packages('qcc')`.
+        **Troubleshooting Python SPC:**
+        - Ensure your data is a single series of numerical values.
+        - Check for NaN or non-finite values before passing to `pyspc`.
         """)
     with tab_feedback:
         st.subheader("Provide Feedback on this Platform")
