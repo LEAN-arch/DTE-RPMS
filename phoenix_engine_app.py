@@ -197,6 +197,14 @@ def generate_multivariate_data():
     df.loc[90:, ['Temperature', 'Pressure']] += [5, -4]
     return df
 
+@st.cache_data(ttl=900)
+def generate_global_kpis():
+    sites = ["Boston, USA", "San Diego, USA", "Oxford, UK"]
+    data = []
+    for site in sites:
+        data.append({'Site': site, 'lon': [-71.0589, -117.1611, -1.2577][sites.index(site)], 'lat': [42.3601, 32.7157, 51.7520][sites.index(site)], 'Studies_Active': np.random.randint(5, 15), 'Data_Integrity': f"{np.random.uniform(99.5, 99.9):.2f}%", 'Automation_Coverage': np.random.randint(85, 98), 'Critical_Flags': np.random.randint(0, 5), 'Mfg_OEE': np.random.randint(75, 92), 'Cpk_Avg': f"{np.random.uniform(1.3, 1.8):.2f}"})
+    return pd.DataFrame(data)
+
 with st.sidebar:
     st.image("https://d1io3yog0oux5.cloudfront.net/_3f03b2222d6fdd47976375a7337f7a69/vertexpharmaceuticals/db/387/2237/logo.png", width=220)
     st.title(CONFIG['ui_settings']['dashboard_title'])
@@ -613,7 +621,7 @@ elif page == "🏛️ **Regulatory & Audit Hub**":
         req_id=c1.text_input("Request ID","FDA-REQ-003")
         agency=c2.selectbox("Requesting Agency",["FDA","EMA","PMDA"])
         study_id_package=c3.selectbox("Select Study to Package:",["VX-CF-MOD-01","VX-522-Tox-02"])
-        st.text_area("Justification / Request Details","Follow-up request for raw data, QC reports, and statistical analysis for the selected study, focusing on outlier investigation.")
+        st.text_area("Justification / Request Details","Follow-up request for raw data, QC reports...")
         files_to_include=st.multiselect("Select Data & Artifacts to Include:",["Raw Instrument Data (.csv)","QC Anomaly Report (.pdf)","Executive Summary (.pptx)"],default=["Raw Instrument Data (.csv)","QC Anomaly Report (.pdf)","Executive Summary (.pptx)"])
         submitter_name=st.text_input("Enter Full Name for Electronic Signature:","Dr. Principal Engineer")
         submitted=st.form_submit_button("🔒 Validate, Lock, and Package Dossier")
@@ -662,7 +670,7 @@ elif page == "🔗 **Data Lineage & Versioning**":
 
 elif page == "✅ **System Validation & QA**":
     st.header("✅ System Validation & Quality Assurance")
-    st.markdown("Manage and review the validation lifecycle of the Phoenix Engine itself...")
+    st.markdown("Manage and review the validation lifecycle of the Phoenix Engine itself, ensuring it operates as intended in a GxP environment.")
     st.subheader("System Validation Workflow (GAMP 5)")
     st.graphviz_chart("""digraph {rankdir=LR;node [shape=box, style=rounded];URS [label="User Requirement\nSpecification (URS)"];FS [label="Functional\nSpecification (FS)"];DS [label="Design\nSpecification (DS)"];Code [label="Code & Unit Tests\n(Pytest)"];IQ [label="Installation\nQualification (IQ)"];OQ [label="Operational\nQualification (OQ)"];PQ [label="Performance\nQualification (PQ)"];RTM [label="Requirements\nTraceability Matrix"];URS -> FS -> DS -> Code;Code -> IQ -> OQ -> PQ;{URS, FS, DS} -> RTM [style=dashed];{IQ, OQ, PQ} -> RTM [style=dashed];}""")
     tab1, tab2, tab3 = st.tabs(["⚙️ **Unit Test Results (Pytest)**", "📋 **Qualification Protocols**", "✍️ **Change Control**"])
@@ -675,11 +683,11 @@ elif page == "✅ **System Validation & QA**":
         st.success("All 45 unit tests passed. Code coverage: 98%.")
     with tab2:
         st.subheader("IQ / OQ / PQ Protocol Status")
-        protocol_data={'Protocol ID':["IQ-PHX-001","OQ-PHX-001","PQ-PHX-001"],'Description':["Verify correct installation...","Test core system functions...","Test system performance..."],'Status':["Executed & Approved","Executed & Approved","Pending Execution"],'Approved By':["qa.lead@vertex.com","qa.lead@vertex.com","N/A"],'Approval Date':["2024-04-01","2024-04-15","N/A"]}
+        protocol_data={'Protocol ID':["IQ-PHX-001","OQ-PHX-001","PQ-PHX-001"],'Description':["Verify correct installation of all libraries and system dependencies.","Test core system functions against functional specifications.","Test system performance under expected load and edge cases."],'Status':["Executed & Approved","Executed & Approved","Pending Execution"],'Approved By':["qa.lead@vertex.com","qa.lead@vertex.com","N/A"],'Approval Date':["2024-04-01","2024-04-15","N/A"]}
         st.dataframe(protocol_data, use_container_width=True)
     with tab3:
         st.subheader("Change Control Log")
-        change_log={'CR-ID':["CR-075", "CR-076"],'Date':["2024-05-10", "2024-05-20"],'Change Description':["Added `statsmodels`...","Updated brand colors..."],'Reason':["Enhance process drift detection...","Improve user experience..."],'Impact Assessment':["Low. Re-validation required.","Low. Re-validation required."],'Status':["Approved & Implemented","In Development"]}
+        change_log={'CR-ID':["CR-075", "CR-076"],'Date':["2024-05-10", "2024-05-20"],'Change Description':["Added `statsmodels` for STL decomposition on Process Control page.","Updated brand colors and added 3D allelic drift plot to Genomics page."],'Reason':["Enhance process drift detection capabilities.","Improve user experience and add new visualization for gene therapy QC."],'Impact Assessment':["Low. Re-validation of Process Control page required.","Low. Re-validation of Genomics page required."],'Status':["Approved & Implemented","In Development"]}
         st.dataframe(change_log, use_container_width=True)
 
 elif page == "⚙️ **System Admin Panel**":
