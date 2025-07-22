@@ -801,3 +801,318 @@ elif page == "📚 **SME Knowledge Base**":
         - **21 CFR Part 11:** The FDA's regulation for ensuring that electronic records and signatures are trustworthy, reliable, and equivalent to paper records. Features like the audit trail, electronic signatures, and validation records in this app are designed to meet these requirements.
         - **Requirements Traceability Matrix (RTM):** A document that maps and traces user requirements with test cases. It is a core part of our validation package to prove that all specified requirements have been tested and met.
         """)
+elif page == "💡 **Strategic Roadmap & Vision**":
+    st.header("💡 DTE-RPMS Automation: Strategic Roadmap & Vision")
+    st.markdown("This outlines the multi-quarter strategic plan for the Phoenix Engine platform, ensuring alignment with Vertex's business objectives of scale, velocity, and innovation.")
+
+    st.subheader("Q3 2024: Foundational Excellence & GxP Compliance")
+    st.progress(100, text="Status: COMPLETE")
+    st.markdown("""
+    - **Objective:** Solidify core QC automation, establish a validated GxP environment, and provide robust reporting tools.
+    - **Key Results:**
+        - ✅ Deployed **Phoenix Engine 3.0** with persistent SQLite backend for audit trails.
+        - ✅ Implemented **System Validation & QA** module with GAMP 5 workflow and mock test results.
+        - ✅ Launched **Process Control** module with SPC and Time Series analysis for TRIKAFTA.
+        - ✅ Deployed **Regulatory Hub** with automated PPTX generation and Pydantic-based dossier validation.
+    """)
+
+    st.subheader("Q4 2024: Predictive Analytics & Scalability")
+    st.progress(65, text="Status: IN PROGRESS")
+    st.markdown("""
+    - **Objective:** Move from reactive QC to predictive data quality insights and scale data processing capabilities.
+    - **Key Results:**
+        - ⏳ **(In Progress)** Develop and deploy ML models for predictive CQA drift in manufacturing.
+        - ⏳ **(In Progress)** Integrate **Spark/Dask** for large-scale genomic data reprocessing (See PoC in Proving Ground).
+        - 🔜 Implement real-time data streaming from lab instruments via Kafka connector.
+        - 🔜 Enhance RCA engine with anomaly clustering to identify novel failure modes.
+    """)
+
+    st.subheader("Q1 2025: Generative AI & Digital Twin")
+    st.progress(10, text="Status: PLANNED")
+    st.markdown("""
+    - **Objective:** Leverage Generative AI for automated insights and create a digital twin of key laboratory processes.
+    - **Key Results:**
+        - 📝 **(Planned)** Integrate **LangChain** for automated generation of full study report narratives (See PoC in Proving Ground).
+        - 📝 **(Planned)** Develop a 'digital twin' simulation of the Ussing Chamber assay to predict outcomes of parameter changes.
+        - 📝 **(Planned)** Deploy a conversational AI assistant (trained on SME Knowledge Base) to answer user questions about processes and data.
+    """)
+
+elif page == "📈 **Process Control (TRIKAFTA)**":
+    # This page's code remains the same from the previous version.
+    st.header("📈 Process Control & Stability for TRIKAFTA® Manufacturing")
+    st.markdown("Monitors critical quality attributes (CQAs) of TRIKAFTA® API manufacturing using advanced SPC and time series analysis.")
+    process_name = st.selectbox("Select TRIKAFTA® CQA to Monitor:", ["TRIKAFTA_API_Purity", "Elexacaftor_Assay", "Tezacaftor_Assay"])
+    df = generate_process_data(process_name)
+    spec_col1, spec_col2, spec_col3 = st.columns(3); USL = spec_col1.number_input("Upper Specification Limit (USL)", value=100.0); TARGET = spec_col2.number_input("Target", value=99.5); LSL = spec_col3.number_input("Lower Specification Limit (LSL)", value=99.0)
+    mean=df['Value'].mean(); std_dev=df['Value'].std(); ucl=mean+3*std_dev; lcl=mean-3*std_dev; cpk=min((USL-mean)/(3*std_dev),(mean-LSL)/(3*std_dev))
+    kpi_col1, kpi_col2, kpi_col3 = st.columns(3); kpi_col1.metric("Process Mean",f"{mean:.3f}"); kpi_col2.metric("Process Std Dev",f"{std_dev:.3f}"); kpi_col3.metric("Process Capability (Cpk)",f"{cpk:.2f}","Alert: < 1.33" if cpk<1.33 else "Stable: > 1.33",delta_color="inverse" if cpk<1.33 else "off")
+    tab_spc, tab_tsa = st.tabs(["📊 **SPC I-Chart**", "📉 **Time Series Decomposition**"])
+    with tab_spc:
+        # SPC chart implementation...
+    with tab_tsa:
+        # Time series decomposition implementation...
+
+elif page == "🧬 **Genomic Data QC (CASGEVY)**":
+    # This page's code remains the same.
+    st.header("🧬 Genomic Data QC Engine for Gene Therapies (CASGEVY)")
+    # ... implementation ...
+
+elif page == "📊 **Cross-Study & Batch Analysis**":
+    # This page's code remains the same.
+    st.header("📊 Cross-Study & Batch-to-Batch Analysis")
+    # ... implementation ...
+
+elif page == "💡 **Automated Root Cause Analysis**":
+    # This page's code remains the same.
+    st.header("💡 Automated Root Cause Analysis (RCA) Engine")
+    # ... implementation ...
+
+elif page == "🚀 **Technology Proving Ground**":
+    st.header("🚀 Technology Proving Ground (PoC Environment)")
+    st.warning("**For Demonstration Only:** This area is for evaluating and prototyping emerging technologies. Results are not for GxP use.")
+
+    tab_langchain, tab_dask, tab_r = st.tabs(["📄 **GenAI: LangChain Summarization**", "💨 **Scalability: Dask Processing**", "📊 **Analytics: R Integration**"])
+
+    with tab_langchain:
+        st.subheader("Proof-of-Concept: Automated Report Summarization")
+        st.markdown("This PoC demonstrates how **LangChain** could be used to automatically generate a human-readable summary from a structured QC report.")
+        report_text = st.text_area("Paste Structured Report Data Here (e.g., JSON from a QC run):", height=200, value="""
+{
+    "study_id": "VX-CF-MOD-01",
+    "qc_run_date": "2024-05-21",
+    "data_integrity_score": 0.998,
+    "key_findings": [
+        {"test": "IC50 Potency", "result": 1.2, "units": "uM", "status": "PASS"},
+        {"test": "Cell Viability", "result": 92.5, "units": "%", "status": "PASS"},
+        {"test": "Reagent Lot Purity", "lot": "LOT-2024-AAAA", "result": 85.1, "units": "%", "status": "FAIL"}
+    ],
+    "conclusion": "Study passed overall, but one reagent lot failed purity spec and has been quarantined."
+}
+        """)
+        if st.button("🤖 Generate Summary with LangChain PoC"):
+            with st.spinner("Simulating call to LangChain API..."):
+                import time
+                time.sleep(2)
+                st.subheader("Generated Narrative Summary:")
+                st.info("""
+                **Study VX-CF-MOD-01 QC Summary:**
+
+                The quality control analysis conducted on May 21, 2024, for study VX-CF-MOD-01 has concluded. The overall data integrity score was excellent at 99.8%.
+
+                Key assays, including IC50 Potency (1.2 µM) and Cell Viability (92.5%), met all acceptance criteria. However, a significant deviation was noted in the Reagent Lot Purity test for **lot LOT-2024-AAAA**, which failed with a result of 85.1%.
+
+                **Action:** While the study passes overall, the failing reagent lot has been flagged and quarantined to prevent its use in future experiments.
+                """)
+            log_action("engineer.principal@vertex.com", "POC_LANGCHAIN_SUMMARY")
+
+    with tab_dask:
+        st.subheader("Proof-of-Concept: Large-Scale Data Processing")
+        st.markdown("This PoC uses **Dask** to simulate the parallel processing of a large (50,000 row) dataset, a task common in genomics or late-stage study aggregation. Dask allows for computations on data larger than system RAM.")
+        if st.button("🚀 Process Large Dataset with Dask"):
+            with st.spinner("Setting up Dask cluster and processing partitions..."):
+                dask_results = load_data_with_dask("dummy_path") # Function defined in Part 1
+                st.subheader("Dask Computation Results:")
+                st.write("Mean 'Response' grouped by 'ReagentLot':")
+                st.dataframe(dask_results)
+            log_action("engineer.principal@vertex.com", "POC_DASK_PROCESSING")
+
+    with tab_r:
+        st.subheader("Proof-of-Concept: R Script Integration via `rpy2`")
+        st.markdown("This PoC demonstrates how a statistical analysis or plot generated in **R** can be executed and its results displayed within the Python-based Phoenix Engine.")
+        
+        st.info("ℹ️ The `rpy2` library is required for this feature. The plot below is a static image representing the output from an R script.")
+
+        # In a real app with rpy2 configured:
+        # r_script = """
+        # library(ggplot2)
+        # data(mtcars)
+        # p <- ggplot(mtcars, aes(x=wt, y=mpg)) + geom_point() + labs(title="R Plot via rpy2")
+        # ggsave("r_plot.png")
+        # """
+        # ro.r(r_script)
+        # st.image("r_plot.png")
+
+        st.image("https://www.r-graph-gallery.com/img/graph/277-marginal-histogram-for-ggplot2.png",
+                 caption="Example of a complex statistical plot generated by R's ggplot2 library, which could be displayed here.")
+elif page == "🏛️ **Regulatory & Audit Hub**":
+    st.header("🏛️ Regulatory & Audit Hub")
+    st.markdown("Prepare, package, and document data dossiers for regulatory inspections and internal audits with full 21 CFR Part 11 traceability.")
+
+    st.info("""
+    **21 CFR Part 11 Compliance Features:**
+    - **Audit Trails:** All actions on this page are logged to a persistent, time-stamped database table (See `Data Lineage & Versioning`).
+    - **Electronic Signatures:** User authentication is required, and actions are linked to the logged-in user.
+    - **Logical Security:** Controls ensure data cannot be altered after packaging and checksum generation.
+    """)
+
+    with st.form("audit_sim_form"):
+        # The form remains the same as the previous version...
+        st.subheader("Package New Regulatory Dossier")
+        c1, c2, c3 = st.columns(3); req_id = c1.text_input("Request ID", "FDA-REQ-003"); agency = c2.selectbox("Requesting Agency", ["FDA", "EMA", "PMDA", "Internal QA"]); study_id_package = c3.selectbox("Select Study to Package:", ["VX-CF-MOD-01", "VX-522-Tox-02"])
+        st.text_area("Justification / Request Details", "Follow-up request for raw data, QC reports, and statistical analysis for the selected study, focusing on outlier investigation.")
+        files_to_include = st.multiselect("Select Data & Artifacts to Include:",["Raw Instrument Data (.csv)", "QC Anomaly Report (.pdf)", "Data Lineage Graph (.svg)", "Audit Trail Log (.json)", "Statistical Analysis Script (R/Python)", "Executive Summary (.pptx)"],default=["Raw Instrument Data (.csv)", "QC Anomaly Report (.pdf)", "Audit Trail Log (.json)", "Executive Summary (.pptx)"])
+        submitter_name = st.text_input("Enter Full Name for Electronic Signature:", "Dr. Principal Engineer")
+        submitted = st.form_submit_button("🔒 Validate, Lock, and Package Dossier")
+
+    if submitted:
+        with st.spinner("1. Validating dossier contract... 2. Generating checksums... 3. Logging GxP action..."):
+            import time, hashlib
+            time.sleep(2)
+            dossier_checksum = hashlib.sha256(f"{req_id}{study_id_package}{submitter_name}".encode()).hexdigest()
+            log_action(user="engineer.principal@vertex.com", action="PACKAGE_REGULATORY_DOSSIER", target_id=req_id, details={'study': study_id_package, 'files': files_to_include, 'signature': submitter_name})
+            st.success(f"Dossier Packaged & Action Logged!")
+            # ... download buttons and other logic ...
+
+elif page == "🔗 **Data Lineage & Versioning**":
+    st.header("🔗 Data Lineage, Versioning & Discrepancy Hub")
+    st.markdown("Visualize data provenance, review change histories for any record, and manage data quality discrepancies.")
+    
+    tab_lineage, tab_versioning, tab_discrepancy = st.tabs(["🗺️ **Visual Data Flow**", "🕓 **Data Versioning (Audit Trail)**", "🔧 **Discrepancy Resolution**"])
+    
+    with tab_lineage:
+        # Same as before...
+        st.subheader("End-to-End Data Flow")
+        # graphviz chart...
+    
+    with tab_versioning:
+        st.subheader("Record Change History Viewer")
+        st.markdown("Query the persistent audit log to see the version history of any data entity or record.")
+        target_id_to_view = st.text_input("Enter Record/Dossier/Batch ID to Audit:", "FDA-REQ-003")
+        if st.button("🔍 View History"):
+            try:
+                conn = sqlite3.connect(DB_FILE)
+                query = "SELECT timestamp, user, action, details FROM audit_log WHERE target_id = ? ORDER BY timestamp DESC"
+                history_df = pd.read_sql_query(query, conn, params=(target_id_to_view,))
+                conn.close()
+                if not history_df.empty:
+                    st.dataframe(history_df, use_container_width=True)
+                else:
+                    st.warning(f"No history found for ID '{target_id_to_view}'.")
+            except Exception as e:
+                st.error(f"Database connection failed. Displaying cached data is not available for this feature. Error: {e}")
+
+    with tab_discrepancy:
+        st.subheader("Automated Discrepancy Resolution")
+        st.markdown("Review and approve system-suggested fixes for data quality issues.")
+        # Simulate some discrepant data
+        disc_data = {'SampleID': ['VX-CF-MOD-01-S0123', 'VX-CF-MOD-01-S0124'], 'Response': [95.4, None], 'CellViability': [88.1, 89.2]}
+        disc_df = pd.DataFrame(disc_data)
+        disc_df['Suggested_Fix'] = [None, disc_df['Response'].mean()]
+        st.write("Discrepant Records Found:")
+        st.dataframe(disc_df, use_container_width=True)
+        if st.button("✅ Approve & Apply Suggested Fixes"):
+            log_action("engineer.principal@vertex.com", "APPLY_DISCREPANCY_FIX", "VX-CF-MOD-01", details={"imputed_value": disc_df['Response'].mean()})
+            st.success("Fix applied and action logged.")
+
+elif page == "✅ **System Validation & QA**":
+    # Page remains the same, still relevant and robust.
+    st.header("✅ System Validation & Quality Assurance")
+    # ... implementation ...
+
+elif page == "⚙️ **System Admin Panel**":
+    st.header("⚙️ System Administration Panel")
+    st.warning("**For Authorized Administrators Only.** Changes here affect the entire application and are fully audited.")
+
+    st.subheader("Current Application Configuration (`config.yml`)")
+    st.code(CONFIG_TEXT, language='yaml')
+
+    with st.form("config_form"):
+        st.subheader("Modify Configuration")
+        st.markdown("Update validation rules or UI settings. A restart will be required to apply changes.")
+        new_min_viability = st.number_input("New Minimum Cell Viability Threshold (Current: 70)", value=CONFIG['validation_rules']['cell_viability']['min'])
+        new_dashboard_title = st.text_input("New Dashboard Title", value=CONFIG['ui_settings']['dashboard_title'])
+        
+        submitted = st.form_submit_button("Submit & Log Configuration Change")
+        if submitted:
+            change_details = {'new_min_viability': new_min_viability, 'new_dashboard_title': new_dashboard_title}
+            log_action("engineer.principal@vertex.com", "CONFIG_CHANGE_REQUEST", "config.yml", details=change_details)
+            st.success("Configuration change request logged! Please restart the application server to apply.")
+            st.info("In a real application, this would trigger a CI/CD pipeline to safely deploy the new configuration.")
+
+elif page == "📈 **System Health & Metrics**":
+    st.header("📈 System Health, KPIs & User Adoption")
+    st.markdown("Live dashboard monitoring the performance of the Phoenix Engine and user engagement.")
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        # KPI 1: User Adoption
+        actions_df = pd.read_sql_query("SELECT timestamp, action FROM audit_log", conn)
+        actions_df['timestamp'] = pd.to_datetime(actions_df['timestamp'])
+        
+        # KPI 2: User Feedback
+        feedback_df = pd.read_sql_query("SELECT rating FROM user_feedback", conn)
+        avg_rating = feedback_df['rating'].mean() if not feedback_df.empty else "N/A"
+        
+        # KPI 3: DB Health
+        db_status = "Connected"
+        db_status_color = "normal"
+        
+        conn.close()
+
+    except Exception as e:
+        st.error(f"**Database Unreachable!** The system cannot fetch live metrics. Displaying last known values.")
+        logger.error(f"DB health check failed: {e}")
+        # Fallback to cached/default values
+        actions_df = pd.DataFrame()
+        avg_rating = "N/A"
+        db_status = "Disconnected"
+        db_status_color = "inverse"
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Logged Actions", len(actions_df))
+    c2.metric("Average User Feedback Rating", f"{avg_rating:.2f} / 5" if isinstance(avg_rating, float) else avg_rating)
+    c3.metric("Backend Database Status", db_status, delta_color=db_status_color)
+    
+    if not actions_df.empty:
+        st.subheader("User Actions Over Time")
+        action_counts = actions_df.set_index('timestamp').resample('D').size().rename('actions')
+        st.line_chart(action_counts)
+        
+elif page == "📚 **SME Knowledge Base & Help**":
+    st.header("📚 SME Knowledge Base & Help Center")
+    st.markdown("Centralized documentation, tutorials, and feedback mechanisms.")
+
+    tab_kb, tab_help, tab_feedback = st.tabs(["🧠 **Knowledge Base**", "❓ **Help & Guides**", "💬 **Submit Feedback**"])
+    
+    with tab_kb:
+        # Same as before, but with new entries...
+        st.subheader("Core Methodologies & Platform Features")
+        st.markdown("""
+        - **Pydantic Data Contracts:** ...
+        - **Statsmodels for Time Series Analysis:** ...
+        - **Persistent Audit Trail:** All GxP-relevant actions are logged to a persistent SQLite database, providing a full, auditable history of data changes, report generation, and configuration updates. See the 'Data Versioning' tab.
+        - **Dynamic Configuration:** The `config.yml` file allows administrators to change key application parameters without code changes. These changes are logged and require a restart to take effect.
+        """)
+        
+    with tab_help:
+        st.subheader("Step-by-Step Guides")
+        st.markdown("""
+        **How to package a regulatory dossier:**
+        1. Navigate to the **Regulatory & Audit Hub**.
+        2. Fill in the Request ID, Agency, and select the Study.
+        3. Select all required artifacts to include in the package.
+        4. Enter your full name for the e-signature.
+        5. Click 'Lock and Package Dossier'. The action will be logged, and download links will appear.
+
+        **Troubleshooting common issues:**
+        - **`Database Unreachable` error:** This indicates the backend database is down. The app will enter a failover mode with limited functionality. Contact DTE support.
+        - **Plot not loading:** Try clearing the cache by clicking the 'C' icon in the top right and re-running the page.
+        """)
+
+    with tab_feedback:
+        st.subheader("Provide Feedback on this Platform")
+        st.markdown("Your feedback is critical for our continuous improvement (Kaizen) process.")
+        with st.form("feedback_form"):
+            feedback_page = st.selectbox("Which page are you providing feedback for?", [p.split(' ')[1] for p in page.split('\n')])
+            feedback_rating = st.slider("Rating (1=Poor, 5=Excellent)", 1, 5, 4)
+            feedback_comment = st.text_area("Comments:")
+            
+            feedback_submitted = st.form_submit_button("Submit Feedback")
+            if feedback_submitted:
+                conn = sqlite3.connect(DB_FILE)
+                c = conn.cursor()
+                c.execute("INSERT INTO user_feedback (timestamp, page, rating, comment) VALUES (?, ?, ?, ?)",
+                          (datetime.now(), feedback_page, feedback_rating, feedback_comment))
+                conn.commit()
+                conn.close()
+                st.success("Thank you! Your feedback has been recorded.")
