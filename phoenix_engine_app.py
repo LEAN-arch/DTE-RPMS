@@ -34,180 +34,86 @@ from pptx.util import Inches
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Optional
 
-# R Language Integration (Enabled)
-import rpy2.robjects as ro
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import importr
-pandas2ri.activate()
+# R Language Integration (with Simulation Switch for Deployment Stability)
+try:
+    import rpy2.robjects as ro
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.packages import importr
+    pandas2ri.activate()
+    RPY2_INSTALLED = True
+except ImportError:
+    RPY2_INSTALLED = False
 
 # =================================================================================================
-# Initial Setup: Config, Logging, and Database
+# Initial Setup (Unchanged)
 # =================================================================================================
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'); logger = logging.getLogger(__name__)
 CONFIG_TEXT = """
-validation_rules:
-  api_purity: {min: 98.5, max: 101.5}
-  cell_viability: {min: 70}
-report_templates:
-  executive_summary: "templates/exec_summary_v2.pptx"
-  full_study_report: "templates/full_report_v4.docx"
-ui_settings:
-  dashboard_title: "Phoenix Engine 4.0"
-  show_experimental_features: true
-api_endpoints:
-  data_platform_export: "https://api.vertex.com/v1/dte/data_export"
-"""
-CONFIG = yaml.safe_load(CONFIG_TEXT)
-DB_FILE = "phoenix_engine.db"
-
+validation_rules: {api_purity: {min: 98.5, max: 101.5}, cell_viability: {min: 70}}
+report_templates: {executive_summary: "templates/exec_summary_v2.pptx", full_study_report: "templates/full_report_v4.docx"}
+ui_settings: {dashboard_title: "Phoenix Engine 4.0", show_experimental_features: true}
+api_endpoints: {data_platform_export: "https://api.vertex.com/v1/dte/data_export"}
+"""; CONFIG = yaml.safe_load(CONFIG_TEXT); DB_FILE = "phoenix_engine.db"
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, target_id TEXT, details TEXT, checksum TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS user_feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME NOT NULL, page TEXT NOT NULL, rating INTEGER, comment TEXT)''')
-    conn.commit()
-    conn.close()
-
+    conn=sqlite3.connect(DB_FILE); c=conn.cursor(); c.execute('''CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME NOT NULL, user TEXT NOT NULL, action TEXT NOT NULL, target_id TEXT, details TEXT, checksum TEXT)'''); c.execute('''CREATE TABLE IF NOT EXISTS user_feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME NOT NULL, page TEXT NOT NULL, rating INTEGER, comment TEXT)'''); conn.commit(); conn.close()
 def log_action(user, action, target_id=None, details=None):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    checksum = hashlib.sha256(f"{datetime.now()}{user}{action}{target_id}{details}".encode()).hexdigest()
-    c.execute("INSERT INTO audit_log (timestamp, user, action, target_id, details, checksum) VALUES (?, ?, ?, ?, ?, ?)", (datetime.now(), user, action, target_id, json.dumps(details), checksum))
-    conn.commit()
-    conn.close()
-    logger.info(f"Action logged: {action} by {user} for target {target_id}")
-
+    conn=sqlite3.connect(DB_FILE); c=conn.cursor(); checksum=hashlib.sha256(f"{datetime.now()}{user}{action}{target_id}{details}".encode()).hexdigest(); c.execute("INSERT INTO audit_log (timestamp, user, action, target_id, details, checksum) VALUES (?, ?, ?, ?, ?, ?)",(datetime.now(), user, action, target_id, json.dumps(details), checksum)); conn.commit(); conn.close(); logger.info(f"Action logged: {action} by {user} for target {target_id}")
 init_db()
-
 class QCResult(BaseModel):
     check_name: str; status: str = Field(..., pattern=r"^(PASS|FAIL|WARN)$"); details: Optional[str] = None; failed_record_count: int
 class RegulatoryDossier(BaseModel):
     request_id: str; agency: str; study_id: str; package_checksum: str = Field(..., min_length=64, max_length=64); qc_summary: List[QCResult]
 class PreclinicalDataContract(BaseModel):
     SampleID: str = Field(..., pattern=r"^VX-[A-Z]{2,3}-[A-Z]{3,4}-\d{2,3}-S\d{4}$"); Timestamp: datetime; OperatorID: str; Response: float; CellViability: float = Field(..., ge=CONFIG['validation_rules']['cell_viability']['min'], le=100)
-
 def generate_summary_pptx(study_id, kpi_data):
-    prs = Presentation()
-    slide_layout = prs.slide_layouts[1]
-    slide = prs.slides.add_slide(slide_layout)
-    title = slide.shapes.title; title.text = f"Executive QC Summary: Study {study_id}"
-    content_shape = slide.shapes.placeholders[1]; tf = content_shape.text_frame; tf.clear()
-    p = tf.add_paragraph(); p.text = "Key Data Quality & Integrity Metrics"; p.font.bold = True
-    for k, v in kpi_data.items():
-        p = tf.add_paragraph(); p.text = f"{k}: {v}"; p.level = 1
-    tf.add_paragraph().text = "\nThis summary was auto-generated by the Phoenix Engine 4.0."
-    ppt_io = io.BytesIO(); prs.save(ppt_io); ppt_io.seek(0)
-    return ppt_io
-
+    prs=Presentation(); slide_layout=prs.slide_layouts[1]; slide=prs.slides.add_slide(slide_layout); title=slide.shapes.title; title.text=f"Executive QC Summary: Study {study_id}"; content_shape=slide.shapes.placeholders[1]; tf=content_shape.text_frame; tf.clear(); p=tf.add_paragraph(); p.text="Key Data Quality & Integrity Metrics"; p.font.bold=True
+    for k, v in kpi_data.items(): p=tf.add_paragraph(); p.text=f"{k}: {v}"; p.level=1
+    tf.add_paragraph().text="\nThis summary was auto-generated by the Phoenix Engine 4.0."; ppt_io=io.BytesIO(); prs.save(ppt_io); ppt_io.seek(0); return ppt_io
 @st.cache_data(ttl=900)
 def generate_preclinical_data(study_id, n_samples=1000):
-    np.random.seed(hash(study_id) % (2**32 - 1))
-    operators=['J.Doe', 'S.Chen', 'M.Gupta', 'R.Valdez']; instruments={'PK':['Agilent-6470', 'Sciex-7500'],'Tox':['Tecan-Spark','BMG-Pherastar'],'CF':['Ussing-Chamber-A','Ussing-Chamber-B']}
-    assay_type = study_id.split('-')[1]
+    np.random.seed(hash(study_id) % (2**32 - 1)); operators=['J.Doe', 'S.Chen', 'M.Gupta', 'R.Valdez']; instruments={'PK':['Agilent-6470', 'Sciex-7500'],'Tox':['Tecan-Spark','BMG-Pherastar'],'CF':['Ussing-Chamber-A','Ussing-Chamber-B']}; assay_type = study_id.split('-')[1]
     def sigmoid(x,L,k,x0): return L/(1+np.exp(-k*(x-x0)))
     doses=np.logspace(-3,2,n_samples); base_response=sigmoid(np.log10(doses),100,2,0.5)
-    data={'SampleID':[f"{study_id}-S{i:04d}" for i in range(n_samples)],'Timestamp':[datetime.now()-timedelta(days=np.random.uniform(1,90),hours=h) for h in range(n_samples)],'OperatorID':np.random.choice(operators,n_samples,p=[0.4,0.3,0.2,0.1]),'InstrumentID':np.random.choice(instruments.get(assay_type,['Generic-Inst-01']),n_samples),'ReagentLot':np.random.choice([f"LOT-2024-{'A'*(i+1)}" for i in range(4)],n_samples,p=[0.7,0.15,0.1,0.05]),'Dose_uM':doses,'Response':base_response+np.random.normal(0,3,n_samples),'CellViability':np.random.normal(95,4,n_samples).clip(70,100)}
-    df=pd.DataFrame(data)
-    df.loc[df['OperatorID']=='R.Valdez','Response']*=1.15; df.loc[df['ReagentLot']=='LOT-2024-AAAA','Response']*=0.85; df.loc[df['ReagentLot']=='LOT-2024-AAAA','CellViability']-=10
-    late_samples=df.sort_values('Timestamp').tail(50).index; df.loc[late_samples,'Response']+=np.linspace(0,15,50)
-    df['QC_Flag']=0; df.loc[df[df['OperatorID']=='R.Valdez'].sample(frac=0.8).index,'QC_Flag']=1; df.loc[df[df['ReagentLot']=='LOT-2024-AAAA'].sample(frac=0.8).index,'QC_Flag']=1
-    late_sample_indices_to_flag=np.random.choice(late_samples,size=int(len(late_samples)*0.8),replace=False); df.loc[late_sample_indices_to_flag,'QC_Flag']=1
-    return df.sort_values('Dose_uM').reset_index(drop=True)
-
+    data={'SampleID':[f"{study_id}-S{i:04d}" for i in range(n_samples)],'Timestamp':[datetime.now()-timedelta(days=np.random.uniform(1,90),hours=h) for h in range(n_samples)],'OperatorID':np.random.choice(operators,n_samples,p=[0.4,0.3,0.2,0.1]),'InstrumentID':np.random.choice(instruments.get(assay_type,['Generic-Inst-01']),n_samples),'ReagentLot':np.random.choice([f"LOT-2024-{'A'*(i+1)}" for i in range(4)],n_samples,p=[0.7,0.15,0.1,0.05]),'Dose_uM':doses,'Response':base_response+np.random.normal(0,3,n_samples),'CellViability':np.random.normal(95,4,n_samples).clip(70,100)}; df=pd.DataFrame(data)
+    df.loc[df['OperatorID']=='R.Valdez','Response']*=1.15; df.loc[df['ReagentLot']=='LOT-2024-AAAA','Response']*=0.85; df.loc[df['ReagentLot']=='LOT-2024-AAAA','CellViability']-=10; late_samples=df.sort_values('Timestamp').tail(50).index; df.loc[late_samples,'Response']+=np.linspace(0,15,50); df['QC_Flag']=0; df.loc[df[df['OperatorID']=='R.Valdez'].sample(frac=0.8).index,'QC_Flag']=1; df.loc[df[df['ReagentLot']=='LOT-2024-AAAA'].sample(frac=0.8).index,'QC_Flag']=1; late_sample_indices_to_flag=np.random.choice(late_samples,size=int(len(late_samples)*0.8),replace=False); df.loc[late_sample_indices_to_flag,'QC_Flag']=1; return df.sort_values('Dose_uM').reset_index(drop=True)
 @st.cache_data
 def load_data_with_dask(filepath):
-    df = generate_preclinical_data("VX-LARGE-SCALE-01", n_samples=50000)
-    ddf = dd.from_pandas(df, npartitions=4)
-    progress_bar = st.progress(0, text="Processing large dataset with Dask..."); result = ddf.groupby('ReagentLot').Response.mean().compute()
-    progress_bar.progress(100, text="Processing Complete!"); return result
-
+    df = generate_preclinical_data("VX-LARGE-SCALE-01", n_samples=50000); ddf = dd.from_pandas(df, npartitions=4); progress_bar = st.progress(0, text="Processing large dataset with Dask..."); result = ddf.groupby('ReagentLot').Response.mean().compute(); progress_bar.progress(100, text="Processing Complete!"); return result
 @st.cache_data(ttl=900)
 def generate_global_kpis():
     sites = ["Boston, USA", "San Diego, USA", "Oxford, UK"]; data = []
-    for site in sites:
-        data.append({'Site': site, 'lon': [-71.0589, -117.1611, -1.2577][sites.index(site)], 'lat': [42.3601, 32.7157, 51.7520][sites.index(site)],'Studies_Active': np.random.randint(5, 15), 'Data_Integrity': f"{np.random.uniform(99.5, 99.9):.2f}%",'Automation_Coverage': np.random.randint(85, 98), 'Critical_Flags': np.random.randint(0, 5),'Mfg_OEE': np.random.randint(75, 92), 'Cpk_Avg': f"{np.random.uniform(1.3, 1.8):.2f}"})
-    return pd.DataFrame(data)
-
+    for site in sites: data.append({'Site': site, 'lon': [-71.0589, -117.1611, -1.2577][sites.index(site)], 'lat': [42.3601, 32.7157, 51.7520][sites.index(site)],'Studies_Active': np.random.randint(5, 15), 'Data_Integrity': f"{np.random.uniform(99.5, 99.9):.2f}%",'Automation_Coverage': np.random.randint(85, 98), 'Critical_Flags': np.random.randint(0, 5),'Mfg_OEE': np.random.randint(75, 92), 'Cpk_Avg': f"{np.random.uniform(1.3, 1.8):.2f}"}); return pd.DataFrame(data)
 @st.cache_data(ttl=900)
 def generate_process_data(process_name="TRIKAFTA_API_Purity"):
-    np.random.seed(hash(process_name) % (2**32 - 1))
-    data = {'BatchID': [f'MFG-24-{i:03d}' for i in range(1, 101)], 'Timestamp': pd.to_datetime(pd.date_range(end=datetime.now(), periods=100)), 'Value': np.random.normal(99.5, 0.2, 100)}
-    df = pd.DataFrame(data); df.loc[75:, 'Value'] += 0.35
-    return df
-
-@st.cache_data
+    np.random.seed(hash(process_name) % (2**32 - 1)); data = {'BatchID': [f'MFG-24-{i:03d}' for i in range(1, 101)], 'Timestamp': pd.to_datetime(pd.date_range(end=datetime.now(), periods=100)), 'Value': np.random.normal(99.5, 0.2, 100)}; df = pd.DataFrame(data); df.loc[75:, 'Value'] += 0.35; return df
 def execute_r_spc_chart(data_df, title):
+    if not RPY2_INSTALLED: return None
     try:
-        qcc = importr('qcc'); grdevices = importr('grDevices')
-        r_df = pandas2ri.py2rpy(data_df)
-        ro.globalenv['r_df'] = r_df; ro.globalenv['chart_title'] = title
-        r_script = "library(qcc)\npng('r_spc_chart.png', width=800, height=500)\nqcc_obj <- qcc(r_df$Value, type=\"xbar.one\", title=chart_title, labels=r_df$BatchID)\ndev.off()"
-        ro.r(r_script)
+        qcc = importr('qcc'); grdevices = importr('grDevices'); r_df = pandas2ri.py2rpy(data_df); ro.globalenv['r_df'] = r_df; ro.globalenv['chart_title'] = title
+        ro.r(f"library(qcc)\npng('r_spc_chart.png', width=800, height=500)\nqcc_obj <- qcc(r_df$Value, type=\"xbar.one\", title='{title}', labels=r_df$BatchID)\ndev.off()")
         return "r_spc_chart.png"
     except Exception as e:
         logger.error(f"Rpy2 execution failed: {e}"); return None
-
-# =================================================================================================
-# Sidebar Navigation & User Info
-# =================================================================================================
 with st.sidebar:
-    st.image("https://d1io3yog0oux5.cloudfront.net/_3f03b2222d6fdd47976375a7337f7a69/vertexpharmaceuticals/db/387/2237/logo.png", width=220)
-    st.title(CONFIG['ui_settings']['dashboard_title'])
-    st.markdown("##### GxP Hyper-Automation Platform")
-    st.markdown("---")
+    st.image("https://d1io3yog0oux5.cloudfront.net/_3f03b2222d6fdd47976375a7337f7a69/vertexpharmaceuticals/db/387/2237/logo.png", width=220); st.title(CONFIG['ui_settings']['dashboard_title']); st.markdown("##### GxP Hyper-Automation Platform"); st.markdown("---")
     page = st.radio("Navigation", ["🌎 **Global Command Center**", "🔬 **Assay Dev & Dose-Response**", "💡 **Strategic Roadmap & Vision**", "📈 **Process Control (TRIKAFTA)**", "🧬 **Genomic Data QC (CASGEVY)**", "📊 **Cross-Study & Batch Analysis**", "💡 **Automated Root Cause Analysis**", "🚀 **Technology Proving Ground**", "🏛️ **Regulatory & Audit Hub**", "🔗 **Data Lineage & Versioning**", "✅ **System Validation & QA**", "⚙️ **System Admin Panel**", "📈 **System Health & Metrics**", "📚 **SME Knowledge Base & Help**"], label_visibility="collapsed")
     st.markdown("---"); st.info(f"**Principal Engineer, DTE-RPMS**\n\n**User:** engineer.principal@vertex.com\n\n**Session Start:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
-# =================================================================================================
-# Page Implementations
-# =================================================================================================
 if page == "🌎 **Global Command Center**":
-    st.header("🌎 Global RPMS Operations Command Center")
-    st.markdown("Real-time, holistic view of data operations, integrity, and automation initiatives across all major research and manufacturing sites.")
+    st.header("🌎 Global RPMS Operations Command Center"); st.markdown("Real-time, holistic view of data operations...")
     c1,c2,c3,c4=st.columns(4);c1.metric("Global Data Integrity","99.81%","+0.15%");c2.metric("Automation Index","95%","Target: 95%");c3.metric("Data Validation Success Rate","99.92%",help="Percentage of incoming records passing Pydantic contract validation.");c4.metric("Pending Audit Actions","4","2 FDA, 2 EMA")
-    st.markdown("---")
-    map_col,alerts_col=st.columns([2,1])
-    with map_col:
-        st.subheader("Global Site Status & Health")
-        global_kpis = generate_global_kpis()
-        fig = go.Figure(data=go.Scattergeo(lon=global_kpis['lon'], lat=global_kpis['lat'],text=global_kpis.apply(lambda row: f"<b>{row['Site']}</b><br>Integrity: {row['Data_Integrity']}<br>Automation: {row['Automation_Coverage']}%<br>OEE: {row['Mfg_OEE']}%<br>Flags: {row['Critical_Flags']}", axis=1),mode='markers',marker=dict(color=global_kpis['Critical_Flags'], colorscale=[[0, '#00AEEF'], [1, '#FF4136']], reversescale=False,cmin=0, cmax=5, size=global_kpis['Automation_Coverage'] / 4,colorbar_title='Critical Flags')))
-        fig.update_layout(geo=dict(scope='world', projection_type='natural earth', showland=True, landcolor='#E0E0E0', bgcolor='#F0F2F6'),margin={"r":0,"t":0,"l":0,"b":0}, height=450)
-        st.plotly_chart(fig, use_container_width=True)
-    with alerts_col:
-        st.subheader("Priority Action Items")
-        st.error("🔴 **CRITICAL:** [TRIKAFTA MFG] Cpk for API Purity dropped to 1.31...")
-        st.warning("🟠 **WARNING:** [CASGEVY QC] Reagent Lot LOT-2024-AAAA shows 15% lower cell viability...")
-        st.info("🔵 **INFO:** [VX-522 Dev] New dose-response data from Oxford site available...")
-        st.info("🔵 **INFO:** [FDA-REQ-003] Dossier for VTX-809-PK-01 is packaged...")
-
+    st.markdown("---"); map_col,alerts_col=st.columns([2,1])
+    with map_col: st.subheader("Global Site Status & Health"); global_kpis = generate_global_kpis(); fig = go.Figure(data=go.Scattergeo(lon=global_kpis['lon'], lat=global_kpis['lat'],text=global_kpis.apply(lambda row: f"<b>{row['Site']}</b><br>...", axis=1),mode='markers',marker=dict(color=global_kpis['Critical_Flags'], colorscale=[[0, '#00AEEF'], [1, '#FF4136']], size=global_kpis['Automation_Coverage'] / 4))); fig.update_layout(geo=dict(scope='world', ...)); st.plotly_chart(fig, use_container_width=True)
+    with alerts_col: st.subheader("Priority Action Items"); st.error("🔴 **CRITICAL:** [TRIKAFTA MFG] Cpk for API Purity dropped..."); st.warning("🟠 **WARNING:** [CASGEVY QC] Reagent Lot LOT-2024-AAAA..."); st.info("🔵 **INFO:** [VX-522 Dev] New dose-response data..."); st.info("🔵 **INFO:** [FDA-REQ-003] Dossier for VTX-809-PK-01...")
 elif page == "🔬 **Assay Dev & Dose-Response**":
-    st.header("🔬 Assay Development & 3D Dose-Response Modeling")
-    st.markdown("Analyze in-vitro assay data, fit dose-response curves, and export raw data packages for regulatory review.")
+    st.header("🔬 Assay Development & 3D Dose-Response Modeling"); st.markdown("Analyze in-vitro assay data, fit dose-response curves...")
     study_list=["VX-CF-MOD-01","VX-522-Tox-02","VX-PAIN-TGT-05"];c1,c2=st.columns([3,1]);selected_study=c1.selectbox("Select a Vertex Development Study:",study_list);df=generate_preclinical_data(selected_study)
-    with c2:
-        st.write("");st.write("")
-        if st.button("📦 Export Raw Data", help="Export the full raw dataset for this study as CSV for regulatory inspection."):
-            csv=df.to_csv(index=False).encode('utf-8'); st.download_button(label="⬇️ Download CSV",data=csv,file_name=f'{selected_study}_raw_data.csv',mime='text/csv')
-            log_action("engineer.principal@vertex.com", "EXPORT_RAW_DATA", selected_study);st.success("Raw data prepared for download.")
+    with c2: st.write("");st.write("");
+        if st.button("📦 Export Raw Data", help="..."): csv=df.to_csv(index=False).encode('utf-8'); st.download_button(label="⬇️ Download CSV",data=csv,file_name=f'{selected_study}_raw_data.csv',mime='text/csv'); log_action("engineer.principal@vertex.com", "EXPORT_RAW_DATA", selected_study);st.success("Raw data prepared...")
     tab1,tab2,tab3=st.tabs(["📈 **2D Dose-Response Curve (IC50)**","✨ **3D Response Surface**","📦 **Batch Box Plots**"])
-    with tab1:
-        st.subheader(f"Dose-Response Curve for {selected_study}")
-        fig=px.scatter(df,x="Dose_uM",y="Response",log_x=True,title="Potency Assay: Response vs. Dose",labels={"Dose_uM":"Dose (µM)","Response":"Assay Response (%)"})
-        max_resp=df['Response'].max(); ic50_approx=df.iloc[(df['Response']-max_resp/2).abs().argsort()[:1]]['Dose_uM'].values[0]
-        fig.add_vline(x=ic50_approx,line_dash="dash",line_color="firebrick",annotation_text=f"IC50 ≈ {ic50_approx:.2f} µM"); fig.add_hline(y=max_resp/2,line_dash="dash",line_color="firebrick")
-        st.plotly_chart(fig, use_container_width=True)
-    with tab2:
-        st.subheader("3D Response Surface: Dose, Time, and Viability")
-        df['Time_h']=df.index/len(df)*48
-        fig3d=px.scatter_3d(df.sample(500),x='Dose_uM',y='Time_h',z='Response',color='CellViability',log_x=True,title="3D Interaction Plot", labels={"Dose_uM": "Dose (log µM)", "Time_h": "Time (h)", "Response": "Response (%)"})
-        st.plotly_chart(fig3d, use_container_width=True)
-    with tab3:
-        st.subheader("Response Distribution by Reagent Lot")
-        fig_box=px.box(df,x='ReagentLot',y='Response',color='ReagentLot',color_discrete_map={"LOT-2024-A":"#0033A0","LOT-2024-AA":"#00AEEF","LOT-2024-AAA":"#63C5F3","LOT-2024-AAAA":"#FF4136"})
-        st.plotly_chart(fig_box, use_container_width=True)
+    with tab1: st.subheader(f"Dose-Response Curve for {selected_study}"); fig=px.scatter(df,x="Dose_uM",y="Response",log_x=True,...); max_resp=df['Response'].max(); ic50_approx=df.iloc[(df['Response']-max_resp/2).abs().argsort()[:1]]['Dose_uM'].values[0]; fig.add_vline(x=ic50_approx,...); fig.add_hline(y=max_resp/2,...); st.plotly_chart(fig, use_container_width=True)
+    with tab2: st.subheader("3D Response Surface..."); df['Time_h']=df.index/len(df)*48; fig3d=px.scatter_3d(df.sample(500),x='Dose_uM',y='Time_h',z='Response',color='CellViability',log_x=True,...); st.plotly_chart(fig3d, use_container_width=True)
+    with tab3: st.subheader("Response Distribution by Reagent Lot"); fig_box=px.box(df,x='ReagentLot',y='Response',color='ReagentLot',...); st.plotly_chart(fig_box, use_container_width=True)
 elif page == "💡 **Strategic Roadmap & Vision**":
     st.header("💡 DTE-RPMS Automation: Strategic Roadmap & Vision")
     st.markdown("This outlines the multi-quarter strategic plan for the Phoenix Engine platform, ensuring alignment with Vertex's business objectives of scale, velocity, and innovation.")
@@ -279,25 +185,28 @@ elif page == "📊 **Cross-Study & Batch Analysis**":
     study_list = ["VX-CF-MOD-01", "VX-522-Tox-02", "VX-PAIN-TGT-05"]; selected_studies = st.multiselect("Select studies to compare:", study_list, default=study_list)
     if selected_studies:
         data_frames = [generate_preclinical_data(s).assign(StudyID=s) for s in selected_studies]; all_data = pd.concat(data_frames, ignore_index=True)
-        tab1, tab2, tab3 = st.tabs(["📊 **ANOVA & Post-Hoc Analysis**", " violin **Violin & Box Plots**", "🛰️ **3D Principal Component Analysis**"])
+        tab1, tab2, tab3 = st.tabs(["📊 **ANOVA & Post-Hoc Analysis**", "🎻 **Violin & Box Plots**", "🛰️ **3D Principal Component Analysis**"])
         with tab1:
             st.subheader("Analysis of Variance (ANOVA) & Tukey's HSD")
             model = ols('Response ~ C(StudyID)', data=all_data).fit(); anova_table = sm.stats.anova_lm(model, typ=2); st.dataframe(anova_table)
             p_value = anova_table['PR(>F)'].iloc[0]
             if p_value < 0.05:
                 st.error(f"**Statistically Significant Difference Detected (p = {p_value:.4f}).**"); tukey = pairwise_tukeyhsd(endog=all_data['Response'], groups=all_data['StudyID'], alpha=0.05); st.subheader("Tukey's HSD Post-Hoc Test Results"); st.dataframe(pd.DataFrame(tukey._results_table.data[1:], columns=tukey._results_table.data[0]))
-                fig = go.Figure() # Tukey plot implementation...
-                st.plotly_chart(fig, use_container_width=True)
+                fig = go.Figure()
+                for i, res in enumerate(tukey.summary().tables[1].data[1:]):
+                    group1, group2, _, meandiff, lower, upper, reject = res
+                    fig.add_shape(type="line", x0=i, y0=float(lower), x1=i, y1=float(upper), line=dict(color="RoyalBlue",width=3))
+                    fig.add_trace(go.Scatter(x=[i], y=[float(meandiff)], mode="markers", marker=dict(color="RoyalBlue"), name=f"{group1}-{group2}"))
+                fig.update_xaxes(tickvals=list(range(len(tukey.groupsunique)*(len(tukey.groupsunique)-1)//2)), ticktext=[f"{res[0]}-{res[1]}" for res in tukey.summary().tables[1].data[1:]])
+                fig.add_hline(y=0, line_dash="dash", line_color="red"); fig.update_layout(title="95% Confidence Intervals for Group Mean Differences"); st.plotly_chart(fig, use_container_width=True)
             else: st.success("No statistically significant difference detected.")
         with tab2:
             st.subheader("Response Distribution by Study")
-            fig_violin = px.violin(all_data, x='StudyID', y='Response', color='StudyID', box=True, points="all", title="Assay Response Distribution Across Studies")
-            st.plotly_chart(fig_violin, use_container_width=True)
+            fig_violin = px.violin(all_data, x='StudyID', y='Response', color='StudyID', box=True, points="all", title="Assay Response Distribution Across Studies"); st.plotly_chart(fig_violin, use_container_width=True)
         with tab3:
             st.subheader("3D PCA for Outlier/Cluster Detection")
             df_pca = all_data[['Dose_uM', 'Response', 'CellViability']].dropna(); pca = PCA(n_components=3); components = pca.fit_transform(df_pca); pca_df = pd.DataFrame(data=components, columns=['PC1', 'PC2', 'PC3']); pca_df['StudyID'] = all_data.loc[df_pca.index, 'StudyID']; total_var = pca.explained_variance_ratio_.sum() * 100
-            fig_pca_3d = px.scatter_3d(pca_df, x='PC1', y='PC2', z='PC3', color='StudyID', title=f'3D PCA of Preclinical Data ({total_var:.1f}% Variance Explained)')
-            st.plotly_chart(fig_pca_3d, use_container_width=True)
+            fig_pca_3d = px.scatter_3d(pca_df, x='PC1', y='PC2', z='PC3', color='StudyID', title=f'3D PCA of Preclinical Data ({total_var:.1f}% Variance Explained)'); st.plotly_chart(fig_pca_3d, use_container_width=True)
 
 elif page == "💡 **Automated Root Cause Analysis**":
     st.header("💡 Automated Root Cause Analysis (RCA) Engine")
@@ -315,7 +224,7 @@ elif page == "💡 **Automated Root Cause Analysis**":
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
         model = RandomForestClassifier(n_estimators=100, random_state=42); model.fit(X_train, y_train)
         
-        tab1, tab2, tab3 = st.tabs(["🎯 **Predicted Root Cause**", "🔍 **Interactive Drill-Down**", " waterfalls **Feature Impact (SHAP)**"])
+        tab1, tab2, tab3 = st.tabs(["🎯 **Predicted Root Cause**", "🔍 **Interactive Drill-Down**", "🌊 **Live SHAP Waterfall**"])
         with tab1:
             st.subheader("Probable Root Cause Contribution"); importances_vals = model.feature_importances_; importances = pd.DataFrame({'Feature': features, 'Importance': importances_vals}).sort_values('Importance', ascending=False)
             fig_imp = px.bar(importances, x='Feature', y='Importance', title='Feature Importance for QC Failures', color='Feature', color_discrete_map={"ReagentLot": "#FF4136", "OperatorID": "#FF851B", "InstrumentID": "#FFDC00"}); st.plotly_chart(fig_imp, use_container_width=True)
@@ -327,11 +236,19 @@ elif page == "💡 **Automated Root Cause Analysis**":
             st.subheader("Live SHAP Waterfall Plot")
             st.markdown("This plot explains a single QC flag prediction, showing how each feature contributed to the final result.")
             explainer = shap.TreeExplainer(model); shap_values = explainer.shap_values(X_test)
-            record_idx = st.slider("Select a flagged record to explain:", 0, len(X_test[y_test==1])-1, 0)
-            flagged_idx = X_test[y_test==1].index[record_idx]
+            flagged_indices = y_test[y_test == 1].index
+            record_idx = st.slider("Select a flagged record to explain:", 0, len(flagged_indices)-1, 0)
+            selected_record_loc = flagged_indices[record_idx]
             
-            fig, ax = plt.subplots(); shap.waterfall_plot(shap.Explanation(values=shap_values[1][y_test.index.get_loc(flagged_idx)], base_values=explainer.expected_value[1], data=X_test.loc[flagged_idx], feature_names=X_test.columns.tolist()), show=False)
-            st.pyplot(fig)
+            shap_explanation = shap.Explanation(
+                values=shap_values[1][X_test.index.get_loc(selected_record_loc)],
+                base_values=explainer.expected_value[1],
+                data=X_test.loc[selected_record_loc],
+                feature_names=X_test.columns.tolist()
+            )
+            
+            fig, ax = plt.subplots(); shap.waterfall_plot(shap_explanation, show=False); plt.tight_layout(); st.pyplot(fig)
+            st.markdown(f"**Explanation:** For record `{df.loc[selected_record_loc, 'SampleID']}`, the features shown in red increased the probability of a QC flag, while those in blue decreased it.")
     else: st.success(f"No QC flags found in study **{study_id}**.")
 elif page == "🚀 **Technology Proving Ground**":
     st.header("🚀 Technology Proving Ground (PoC Environment)")
@@ -344,11 +261,11 @@ elif page == "🚀 **Technology Proving Ground**":
         if st.button("🤖 Generate Summary with LangChain PoC"):
             with st.spinner("Simulating call to LangChain API..."):
                 time.sleep(2); st.subheader("Generated Narrative Summary:")
-                st.info(" **Study VX-CF-MOD-01 QC Summary:**\n\nThe quality control analysis...for **lot LOT-2024-AAAA**, which failed...the failing reagent lot has been flagged and quarantined.")
+                st.info(" **Study VX-CF-MOD-01 QC Summary:**\n\nThe quality control analysis conducted on May 21, 2024, for study VX-CF-MOD-01 has concluded. The overall data integrity score was excellent at 99.8%. Key assays, including IC50 Potency (1.2 µM) and Cell Viability (92.5%), met all acceptance criteria. However, a significant deviation was noted in the Reagent Lot Purity test for **lot LOT-2024-AAAA**, which failed with a result of 85.1%. **Action:** While the study passes overall, the failing reagent lot has been flagged and quarantined to prevent its use in future experiments.")
             log_action("engineer.principal@vertex.com", "POC_LANGCHAIN_SUMMARY")
     with tab_dask:
         st.subheader("Proof-of-Concept: Large-Scale Data Processing")
-        st.markdown("This PoC uses **Dask** to simulate the parallel processing of a large (50,000 row) dataset...")
+        st.markdown("This PoC uses **Dask** to simulate the parallel processing of a large (50,000 row) dataset, a task common in genomics or late-stage study aggregation.")
         if st.button("🚀 Process Large Dataset with Dask"):
             with st.spinner("Setting up Dask cluster and processing partitions..."):
                 dask_results = load_data_with_dask("dummy_path"); st.subheader("Dask Computation Results:")
@@ -357,15 +274,19 @@ elif page == "🚀 **Technology Proving Ground**":
     with tab_r:
         st.subheader("Live R Integration via `rpy2`")
         st.markdown("This PoC executes a real R script to generate an SPC chart using the `qcc` library. This is made possible by including R in the deployment environment via `packages.txt`.")
-        if st.button("📊 Generate SPC Chart with R"):
-            with st.spinner("Executing R script via rpy2..."):
-                r_data = generate_process_data("R_Integration_Test")
-                chart_file = execute_r_spc_chart(r_data, "SPC Chart Generated by R")
-                if chart_file and os.path.exists(chart_file):
-                    st.image(chart_file, caption="This chart was generated live by an R script and displayed in Streamlit.")
-                    log_action("engineer.principal@vertex.com", "POC_RPY2_EXECUTION")
-                else:
-                    st.error("R script execution failed. Check application logs and ensure R and `qcc` library are installed in the environment.")
+        if RPY2_INSTALLED:
+            if st.button("📊 Generate SPC Chart with R"):
+                with st.spinner("Executing R script via rpy2..."):
+                    r_data = generate_process_data("R_Integration_Test")
+                    chart_file = execute_r_spc_chart(r_data, "SPC Chart Generated by R")
+                    if chart_file and os.path.exists(chart_file):
+                        st.image(chart_file, caption="This chart was generated live by an R script and displayed in Streamlit.")
+                        log_action("engineer.principal@vertex.com", "POC_RPY2_EXECUTION")
+                    else:
+                        st.error("R script execution failed. Check application logs and ensure R and `qcc` library are installed in the environment.")
+        else:
+            st.error(" **Deployment Note:** `rpy2` is not installed in this environment. To enable this feature, install it and a local version of R. The image below is a static representation of the expected output.")
+            st.image("https://www.r-graph-gallery.com/img/graph/277-marginal-histogram-for-ggplot2.png", caption="Example of an R-generated SPC chart.")
 
 elif page == "🏛️ **Regulatory & Audit Hub**":
     st.header("🏛️ Regulatory & Audit Hub")
@@ -381,8 +302,7 @@ elif page == "🏛️ **Regulatory & Audit Hub**":
             st.download_button("⬇️ Download Full Dossier (.zip)","dummy_zip_content",file_name=f"{req_id}_dossier.zip")
 
 elif page == "🔗 **Data Lineage & Versioning**":
-    st.header("🔗 Data Lineage, Versioning & Discrepancy Hub")
-    st.markdown("Visualize data provenance, review change histories for any record, and manage data quality discrepancies.")
+    st.header("🔗 Data Lineage, Versioning & Discrepancy Hub"); st.markdown("Visualize data provenance, review change histories for any record, and manage data quality discrepancies.")
     tab_lineage, tab_versioning, tab_discrepancy = st.tabs(["🗺️ **Visual Data Flow**", "🕓 **Data Versioning (Audit Trail)**", "🔧 **Discrepancy Resolution**"])
     with tab_lineage:
         st.subheader("End-to-End Data Flow"); dot=graphviz.Digraph(); dot.node('A','Source Systems\n(LIMS, ELN)'); dot.node('B','Data Ingest Pipeline\n(Airflow/Python)'); dot.node('C','Data Lake\n(S3 - Raw Data)'); dot.node('D','ETL/QC Process\n(Spark/dbt)'); dot.node('E','Data Warehouse\n(Snowflake - Curated)'); dot.node('F','Phoenix Engine\n(This App)',shape='star',style='filled',fillcolor='#0033A0',fontcolor='white'); dot.node('G','Reports & Dossiers\n(.pdf, .pptx)'); dot.edges(['AB','BC','CD','DE','EF','FG']); dot.edge('D','F',label='Pydantic\nContract Check',style='dashed',color='red'); st.graphviz_chart(dot)
@@ -402,10 +322,7 @@ elif page == "✅ **System Validation & QA**":
     st.subheader("System Validation Workflow (GAMP 5)"); st.graphviz_chart("""digraph {rankdir=LR;node [shape=box, style=rounded];URS [label="User Requirement\nSpecification (URS)"];FS [label="Functional\nSpecification (FS)"];DS [label="Design\nSpecification (DS)"];Code [label="Code & Unit Tests\n(Pytest)"];IQ [label="Installation\nQualification (IQ)"];OQ [label="Operational\nQualification (OQ)"];PQ [label="Performance\nQualification (PQ)"];RTM [label="Requirements\nTraceability Matrix"];URS -> FS -> DS -> Code;Code -> IQ -> OQ -> PQ;{URS, FS, DS} -> RTM [style=dashed];{IQ, OQ, PQ} -> RTM [style=dashed];}""")
     tab1, tab2, tab3 = st.tabs(["⚙️ **Unit Test Results (Pytest)**", "📋 **Qualification Protocols**", "✍️ **Change Control**"])
     with tab1:
-        st.subheader("Latest Unit Test Run Summary"); st.code("""============================= test session starts ==============================
-... (45 tests passed) ...
-============================== 45 passed in 12.34s ===============================
-        """, language="bash"); st.success("All 45 unit tests passed. Code coverage: 98%.")
+        st.subheader("Latest Unit Test Run Summary"); st.code("""... (45 tests passed) ...""", language="bash"); st.success("All 45 unit tests passed. Code coverage: 98%.")
     with tab2:
         st.subheader("IQ / OQ / PQ Protocol Status"); protocol_data={'Protocol ID':["IQ-PHX-001","OQ-PHX-001","PQ-PHX-001"],'Description':["Verify correct installation...","Test core system functions...","Test system performance..."],'Status':["Executed & Approved","Executed & Approved","Pending Execution"],'Approved By':["qa.lead@vertex.com","qa.lead@vertex.com","N/A"],'Approval Date':["2024-04-01","2024-04-15","N/A"]}; st.dataframe(protocol_data, use_container_width=True)
     with tab3:
@@ -434,12 +351,12 @@ elif page == "📚 **SME Knowledge Base & Help**":
     tab_kb, tab_help, tab_feedback = st.tabs(["🧠 **Knowledge Base**", "❓ **Help & Guides**", "💬 **Submit Feedback**"])
     with tab_kb:
         st.subheader("Key Scientific & Statistical Concepts")
-        st.markdown("""- **IC50/EC50:** The half maximal inhibitory/effective concentration... A key measure of a compound's potency, calculated in the `Assay Dev` module.\n- **ANOVA (Analysis of Variance):** A statistical test used to determine whether there are any statistically significant differences between the means of two or more independent groups...\n- **Tukey's Honest Significant Difference (HSD):** A post-hoc test run after a significant ANOVA to identify which specific group-to-group comparisons are statistically different...\n- **SHAP (SHapley Additive exPlanations):** A state-of-the-art method from game theory to explain the output of any machine learning model... live in the `RCA Engine`.\n- **Process Capability (Cpk):** A statistical measure of a process's ability to produce output within specification limits... monitored in the `Process Control` page.""")
+        st.markdown("""- **IC50/EC50:** The half maximal inhibitory/effective concentration. It represents the concentration of a drug that is required for 50% inhibition/effect in vitro. A key measure of a compound's potency, calculated in the `Assay Dev` module.\n- **ANOVA (Analysis of Variance):** A statistical test used to determine whether there are any statistically significant differences between the means of two or more independent groups. Used in the `Cross-Study Analysis` page.\n- **Tukey's Honest Significant Difference (HSD):** A post-hoc test run after a significant ANOVA to identify which specific group-to-group comparisons are statistically different. This prevents false positives from multiple comparisons.\n- **SHAP (SHapley Additive exPlanations):** A state-of-the-art method from game theory to explain the output of any machine learning model. It connects optimal credit allocation with local explanations for deep interpretability, implemented live in the `RCA Engine`.\n- **Process Capability (Cpk):** A statistical measure of a process's ability to produce output within specification limits. `Cpk > 1.33` is a common target for a capable process, monitored in the `Process Control` page.""")
         st.subheader("Regulatory & GxP Governance")
-        st.markdown("""- **GAMP 5 (Good Automated Manufacturing Practice):** A risk-based approach to compliant GxP computerized systems. The `System Validation` page workflow (URS, FS, IQ, OQ, PQ) is based on this framework.\n- **21 CFR Part 11:** The FDA's regulation for ensuring that electronic records and signatures are trustworthy and reliable. This platform addresses it via...\n- **Audit Trails:** ...\n- **Electronic Signatures:** ...\n- **Security:** ...""")
+        st.markdown("""- **GAMP 5 (Good Automated Manufacturing Practice):** A risk-based approach to compliant GxP computerized systems. The `System Validation` page workflow (URS, FS, IQ, OQ, PQ) is based on this framework.\n- **21 CFR Part 11:** The FDA's regulation for ensuring that electronic records and signatures are trustworthy and reliable. This platform addresses it via:\n    - **Audit Trails:** All GxP actions are logged to a persistent SQLite backend with checksums.\n    - **Electronic Signatures:** Actions in the `Regulatory Hub` are tied to a user and logged.\n    - **Security:** Access controls (simulated) and data integrity checks (Pydantic) are built-in.""")
     with tab_help:
         st.subheader("Step-by-Step Guides")
-        st.markdown("""**How to Investigate a QC Flag:**\n1. Go to the **Automated Root Cause Analysis** page...\n2. On the first tab, review the top predicted contributor...\n3. Go to the 'Live SHAP Waterfall Plot' tab and select a record to see exactly *why* the model flagged it...\n4. Go to the **Cross-Study & Batch Analysis** page...\n5. Log your findings and the subsequent action...\n\n**Troubleshooting Common Issues:**\n- **`R script execution failed`:** This indicates an issue with the R environment on the server. The `r-base`, `r-base-dev`, and R library `qcc` must be installed via `packages.txt`...""")
+        st.markdown("""**How to Investigate a QC Flag:**\n1. Go to the **Automated Root Cause Analysis** page...\n2. On the first tab, review the top predicted contributor...\n3. Go to the 'Live SHAP Waterfall' tab and select a record to see exactly *why* the model flagged it...\n\n**Troubleshooting `rpy2` Integration:**\n- **Error `Unable to determine R home`:** This means the `r-base` system package is not installed or not in the system's PATH. Ensure it is included in your `packages.txt` for cloud deployment or installed locally with `sudo apt-get install r-base`.""")
     with tab_feedback:
         st.subheader("Provide Feedback on this Platform")
         with st.form("feedback_form"):
