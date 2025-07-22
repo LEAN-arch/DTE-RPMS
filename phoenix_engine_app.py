@@ -35,7 +35,7 @@ from pptx import Presentation
 from pptx.util import Inches
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Optional
-from pyspc import Spc # Python-native SPC charting
+from pyspc.spc import Spc
 
 # =================================================================================================
 # Initial Setup
@@ -616,7 +616,7 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
                 st.dataframe(dask_results)
             log_action("engineer.principal@vertex.com", "POC_DASK_PROCESSING")
 # =================================================================================================
-# Technology Proving Ground Page (Replace the 'tab_spc' block)
+# Technology Proving Ground Page (Final Corrected 'tab_spc' block)
 # =================================================================================================
 
     with tab_spc:
@@ -626,8 +626,8 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
             with st.spinner("Generating SPC chart with pyspc..."):
                 spc_data = generate_process_data("Python_SPC_Test")
 
-                # === CORRECTED PYSPC USAGE ===
-                # 1. Instantiate the Spc class with the data.
+                # === DEFINITIVELY CORRECTED PYSPC USAGE ===
+                # 1. Instantiate the Spc class (which is now correctly imported).
                 s = Spc(spc_data.Value, chart_type='xbar', title="Python-Generated SPC Chart (x-bar)")
                 
                 # 2. Get the figure object from the instance.
@@ -635,7 +635,7 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
                 
                 # 3. Display the matplotlib figure in Streamlit.
                 st.pyplot(fig)
-                # ==============================
+                # ==========================================
 
                 log_action("engineer.principal@vertex.com", "POC_PYSPC_EXECUTION")
 elif page == "🏛️ **Regulatory & Audit Hub**":
