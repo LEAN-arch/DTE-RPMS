@@ -35,7 +35,6 @@ from pptx import Presentation
 from pptx.util import Inches
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Optional
-from pyspc.spc import Spc
 
 # =================================================================================================
 # Initial Setup
@@ -621,23 +620,53 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
 
     with tab_spc:
         st.subheader("PoC: Python-Native Advanced SPC Charting")
-        st.markdown("This PoC demonstrates a pure Python implementation of an advanced control chart using the `pyspc` library, providing a stable alternative to R integration.")
+        st.markdown("This PoC demonstrates a pure Python implementation of a Shewhart (x-bar) control chart using foundational libraries like Pandas and Matplotlib, ensuring maximum stability and control.")
+        
         if st.button("📊 Generate Advanced SPC Chart with Python"):
-            with st.spinner("Generating SPC chart with pyspc..."):
+            with st.spinner("Generating SPC chart with Matplotlib..."):
+                
+                # 1. Get process data
                 spc_data = generate_process_data("Python_SPC_Test")
+                data_series = spc_data['Value']
+                
+                # 2. Calculate SPC parameters
+                mean = data_series.mean()
+                std_dev = data_series.std()
+                ucl = mean + 3 * std_dev  # Upper Control Limit
+                lcl = mean - 3 * std_dev  # Lower Control Limit
+                uwl = mean + 2 * std_dev  # Upper Warning Limit
+                lwl = mean - 2 * std_dev  # Lower Warning Limit
 
-                # === DEFINITIVELY CORRECTED PYSPC USAGE ===
-                # 1. Instantiate the Spc class (which is now correctly imported).
-                s = Spc(spc_data.Value, chart_type='xbar', title="Python-Generated SPC Chart (x-bar)")
+                # 3. Create the plot using Matplotlib for full control
+                fig, ax = plt.subplots(figsize=(12, 6))
                 
-                # 2. Get the figure object from the instance.
-                fig = s.get_fig()
+                # Plot data points
+                ax.plot(spc_data.index, data_series, marker='o', linestyle='-', color='b', label='Process Value')
                 
-                # 3. Display the matplotlib figure in Streamlit.
+                # Plot center line and control limits
+                ax.axhline(mean, color='green', linestyle='-', label='Center Line (Mean)')
+                ax.axhline(ucl, color='red', linestyle='--', label='UCL (+3σ)')
+                ax.axhline(lcl, color='red', linestyle='--', label='LCL (-3σ)')
+                ax.axhline(uwl, color='orange', linestyle=':', label='UWL (+2σ)')
+                ax.axhline(lwl, color='orange', linestyle=':', label='LWL (-2σ)')
+                
+                # Identify and highlight out-of-control points
+                out_of_control = spc_data[(data_series > ucl) | (data_series < lcl)]
+                if not out_of_control.empty:
+                    ax.scatter(out_of_control.index, out_of_control['Value'], color='red', s=100, zorder=5, label='Out of Control')
+
+                # Formatting
+                ax.set_title("Python-Generated SPC Chart (x-bar)", fontsize=16)
+                ax.set_xlabel("Batch Number", fontsize=12)
+                ax.set_ylabel("Measured Value", fontsize=12)
+                ax.legend()
+                ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+                plt.tight_layout()
+                
+                # 4. Display the matplotlib figure in Streamlit
                 st.pyplot(fig)
-                # ==========================================
 
-                log_action("engineer.principal@vertex.com", "POC_PYSPC_EXECUTION")
+                log_action("engineer.principal@vertex.com", "POC_PYTHON_SPC_EXECUTION")
 elif page == "🏛️ **Regulatory & Audit Hub**":
     st.header("🏛️ Regulatory & Audit Hub")
     st.markdown("Prepare, package, and document data dossiers for regulatory inspections and internal audits with full 21 CFR Part 11 traceability.")
