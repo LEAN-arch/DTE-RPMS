@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import graphviz
+import matplotlib.pyplot as plt
 
 # Advanced Analytics & ML
 from sklearn.ensemble import IsolationForest
@@ -12,14 +13,14 @@ from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from sklearn.decomposition import PCA
-from scipy.stats import f_oneway, mannwhitneyu
+from scipy.stats import f_oneway
 
 # =================================================================================================
 # App Configuration & Professional Styling
 # =================================================================================================
 st.set_page_config(
     page_title="VTX DTE-RPMS Phoenix Engine",
-    page_icon="🔥", # Using a "Phoenix" icon
+    page_icon="🔥",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -129,11 +130,21 @@ def generate_preclinical_data(study_id, n_samples=1000):
     # 3. Instrument drift over time (late samples)
     late_samples = df.sort_values('Timestamp').tail(50).index
     df.loc[late_samples, 'Value'] *= np.linspace(1, 1.5, 50)
+
     # 4. Create a target 'QC_Flag' for ML
     df['QC_Flag'] = 0
     df.loc[df[df['OperatorID'] == 'R.Valdez'].sample(frac=0.8).index, 'QC_Flag'] = 1
     df.loc[df[df['ReagentLot'] == 'LOT-2024-AAAA'].sample(frac=0.8).index, 'QC_Flag'] = 1
-    df.loc[late_samples.sample(frac=0.8), 'QC_Flag'] = 1
+    
+    # === FIX APPLIED HERE ===
+    # OLD, BUGGY CODE: df.loc[late_samples.sample(frac=0.8), 'QC_Flag'] = 1
+    # REASON: .sample() cannot be called on a Pandas Index object.
+    # NEW, CORRECTED CODE:
+    late_sample_indices_to_flag = np.random.choice(
+        late_samples, size=int(len(late_samples) * 0.8), replace=False
+    )
+    df.loc[late_sample_indices_to_flag, 'QC_Flag'] = 1
+    # ========================
 
     return df.sort_values('Timestamp').reset_index(drop=True)
 
@@ -206,9 +217,7 @@ with st.sidebar:
     )
     st.markdown("---")
     st.link_button("Go to Vertex DTE Portal", "https://www.vrtx.com/our-science/data-technology-and-engineering/")
-
-
-# =================================================================================================
+    # =================================================================================================
 # Page Implementations
 # =================================================================================================
 
@@ -354,7 +363,8 @@ elif page == "💡 **Automated Root Cause Analysis (RCA)**":
         df_ml = df.copy()
         for col in features:
             le = LabelEncoder()
-            df_ml[col] = le.fit_transform(df_ml[col])
+            # Use .astype(str) to handle any potential mixed types gracefully
+            df_ml[col] = le.fit_transform(df_ml[col].astype(str))
         
         X = df_ml[features]
         y = df_ml[target]
@@ -368,7 +378,7 @@ elif page == "💡 **Automated Root Cause Analysis (RCA)**":
         st.markdown("**Explanation:** A Decision Tree model was trained on the historical data to find the most predictive factors for QC flags. The rules below represent the most likely root causes.")
         
         fig, ax = plt.subplots(figsize=(15, 8))
-        plot_tree(clf, feature_names=features, class_names=['No Flag', 'Flagged'], filled=True, rounded=True, ax=ax)
+        plot_tree(clf, feature_names=features, class_names=['No Flag', 'Flagged'], filled=True, rounded=True, ax=ax, fontsize=10)
         st.pyplot(fig)
         
         st.subheader("Probable Root Cause Summary")
@@ -557,3 +567,4 @@ elif page == "📚 **SME Knowledge Base**":
         - **Software Development:** All code (including this application) is version-controlled in Git, subject to peer review, and deployed via a validated CI/CD pipeline.
         - **Validation:** System components undergo rigorous Installation Qualification (IQ), Operational Qualification (OQ), and Performance Qualification (PQ) before being put into GxP use.
         """)
+    
