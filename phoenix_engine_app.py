@@ -47,7 +47,13 @@ except ImportError:
 # =================================================================================================
 # Initial Setup
 # =================================================================================================
-
+st.set_page_config(
+    page_title="Phoenix Engine 4.0 | VTX DTE-RPMS",
+    page_icon="🔥", # Updated as requested
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+# ================================================================================================
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
