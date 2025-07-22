@@ -1,4 +1,2 @@
 graphviz
-r-base
-r-base-dev
 build-essential
