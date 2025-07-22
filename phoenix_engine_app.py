@@ -35,7 +35,7 @@ from pptx import Presentation
 from pptx.util import Inches
 from pydantic import BaseModel, Field, ValidationError
 from typing import List, Optional
-import pyspc # Python-native SPC charting
+from pyspc import Spc # Python-native SPC charting
 
 # =================================================================================================
 # Initial Setup
@@ -625,20 +625,17 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
         if st.button("📊 Generate Advanced SPC Chart with Python"):
             with st.spinner("Generating SPC chart with pyspc..."):
                 spc_data = generate_process_data("Python_SPC_Test")
+
+                # === CORRECTED PYSPC USAGE ===
+                # 1. Instantiate the Spc class with the data.
+                s = Spc(spc_data.Value, chart_type='xbar', title="Python-Generated SPC Chart (x-bar)")
                 
-                # Corrected pyspc usage:
-                # The library is functional but returns a matplotlib figure object directly.
-                # It does not have a high-level 'Spc' class. We call the chart function.
-                s = pyspc.xbar(spc_data.Value, title="Python-Generated SPC Chart (x-bar)")
+                # 2. Get the figure object from the instance.
+                fig = s.get_fig()
                 
-                # The pyspc library's get_fig() might not exist or work as expected in all versions.
-                # The most robust way is to use the returned figure object directly.
-                # If 's' is a matplotlib figure, we can display it.
-                if hasattr(s, 'figure'):
-                    st.pyplot(s.figure)
-                else:
-                    # Fallback for older versions or unexpected return types
-                    st.warning("Could not automatically display the pyspc figure. Check library version.")
+                # 3. Display the matplotlib figure in Streamlit.
+                st.pyplot(fig)
+                # ==============================
 
                 log_action("engineer.principal@vertex.com", "POC_PYSPC_EXECUTION")
 elif page == "🏛️ **Regulatory & Audit Hub**":
