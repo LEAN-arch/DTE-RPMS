@@ -152,6 +152,23 @@ def generate_preclinical_data(study_id, n_samples=1000):
     late_sample_indices_to_flag=np.random.choice(late_samples,size=int(len(late_samples)*0.8),replace=False)
     df.loc[late_sample_indices_to_flag,'QC_Flag']=1
     return df.sort_values('Dose_uM').reset_index(drop=True)
+# =================================================================================================
+# Function Definitions Section (Add this function)
+# =================================================================================================
+
+@st.cache_data
+def load_data_with_dask(filepath):
+    """Simulates loading a large dataset using Dask for parallel processing."""
+    # In a real app, this would be a large CSV or Parquet file
+    df = generate_preclinical_data("VX-LARGE-SCALE-01", n_samples=50000)
+    # Create a Dask DataFrame
+    ddf = dd.from_pandas(df, npartitions=4)
+    
+    progress_bar = st.progress(0, text="Processing large dataset with Dask...")
+    # Simulate a computation
+    result = ddf.groupby('ReagentLot').Response.mean().compute()
+    progress_bar.progress(100, text="Processing Complete!")
+    return result
 
 @st.cache_data(ttl=900)
 def generate_process_data(process_name="TRIKAFTA_API_Purity"):
@@ -598,15 +615,31 @@ print(f"Maximum Yield Found: {-result.fun:.1f}")
                 st.write("Mean 'Response' grouped by 'ReagentLot':")
                 st.dataframe(dask_results)
             log_action("engineer.principal@vertex.com", "POC_DASK_PROCESSING")
+# =================================================================================================
+# Technology Proving Ground Page (Replace the 'tab_spc' block)
+# =================================================================================================
+
     with tab_spc:
         st.subheader("PoC: Python-Native Advanced SPC Charting")
         st.markdown("This PoC demonstrates a pure Python implementation of an advanced control chart using the `pyspc` library, providing a stable alternative to R integration.")
         if st.button("📊 Generate Advanced SPC Chart with Python"):
             with st.spinner("Generating SPC chart with pyspc..."):
                 spc_data = generate_process_data("Python_SPC_Test")
-                s = pyspc.Spc(spc_data.Value, chart_type='xbar', title='Python-Generated SPC Chart')
-                fig = s.get_fig()
-                st.pyplot(fig)
+                
+                # Corrected pyspc usage:
+                # The library is functional but returns a matplotlib figure object directly.
+                # It does not have a high-level 'Spc' class. We call the chart function.
+                s = pyspc.xbar(spc_data.Value, title="Python-Generated SPC Chart (x-bar)")
+                
+                # The pyspc library's get_fig() might not exist or work as expected in all versions.
+                # The most robust way is to use the returned figure object directly.
+                # If 's' is a matplotlib figure, we can display it.
+                if hasattr(s, 'figure'):
+                    st.pyplot(s.figure)
+                else:
+                    # Fallback for older versions or unexpected return types
+                    st.warning("Could not automatically display the pyspc figure. Check library version.")
+
                 log_action("engineer.principal@vertex.com", "POC_PYSPC_EXECUTION")
 elif page == "🏛️ **Regulatory & Audit Hub**":
     st.header("🏛️ Regulatory & Audit Hub")
